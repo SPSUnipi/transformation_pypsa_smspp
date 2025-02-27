@@ -32,6 +32,7 @@ then = datetime.now()
 transformation = Transformation(network)
 print(f"La classe di trasformazione ci mette {datetime.now() - then} secondi")
 
+
 # pySMSpp
 sn = SMSNetwork(file_type=SMSFileType.eBlockFile) # Empty Block
 
@@ -63,7 +64,7 @@ kwargs = {**kwargs, **generator_node}
 
 # Lines
 line_variables = {}
-for name, variable in transformation.networkblock['Lines'][1].items():
+for name, variable in transformation.networkblock['Lines']['variables'].items():
     line_variables[name] = Variable(
         name,
         variable['type'],
@@ -81,24 +82,23 @@ sn.add(
 )
 
 # Add unit blocks
-i = 0
+
 for name, unit_block in transformation.unitblocks.items():
     kwargs = {}
-    for variable_name, variable in unit_block[1].items():
+    for variable_name, variable in unit_block['variables'].items():
         kwargs[variable_name] = Variable(
             variable_name,
             variable['type'],
             variable['size'],
             variable['value'])
     
-    unit_block = Block().from_kwargs(
-        block_type=unit_block[0],
+    unit_block_toadd = Block().from_kwargs(
+        block_type=unit_block['block'],
         **kwargs
     )
     
     # Why should I have name UnitBlock_0?
-    sn.blocks["Block_0"].add_block(f"UnitBlock_{i}", block=unit_block)
-    i += 1
+    sn.blocks["Block_0"].add_block(unit_block['enumerate'], block=unit_block_toadd)
     
     
 # Optimization

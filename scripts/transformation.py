@@ -36,7 +36,7 @@ class Transformation:
         Parameters for a ThermalUnitBlock
     """
 
-    def __init__(self, n):
+    def __init__(self, n, max_hours_stores=10):
         """
         Initializes the Transformation class.
 
@@ -45,7 +45,9 @@ class Transformation:
         
         n : PyPSA Network
             PyPSA energy network object containing components such as generators and storage units.
-            
+        max_hours_stores: int
+            Max hours parameter for stores, default is 10h. Stores do not have this parameter, but it is required to model them as BatteryUnitBlocks
+        
         Methods:
         ----------
         init : Start the workflow of the class
@@ -107,8 +109,8 @@ class Transformation:
         self.BatteryUnitBlock_store_parameters = {
             "Kappa": 0.0,
             # DEFAULT MAX HOURS 10 H
-            "MaxPower": lambda e_nom_opt, e_max_pu: e_nom_opt * e_max_pu / 10,
-            "MinPower": lambda e_nom_opt, e_min_pu: e_nom_opt * e_min_pu / 10,
+            "MaxPower": lambda e_nom_opt, e_max_pu, max_hours: e_nom_opt * e_max_pu / max_hours,
+            "MinPower": lambda e_nom_opt, e_min_pu, max_hours: e_nom_opt * e_min_pu / max_hours,
             "DeltaRampUp": np.nan,
             "DeltaRampDown": np.nan,
             "ExtractingBatteryRho": 1.0,
@@ -118,7 +120,7 @@ class Transformation:
             "MaxStorage": lambda e_nom_opt, e_max_pu: e_nom_opt * e_max_pu,
             "MaxPrimaryPower": 0.0,
             "MaxSecondaryPower": 0.0,
-            "InitialPower": lambda e_initial: e_initial / 10,
+            "InitialPower": lambda e_initial, max_hours: e_initial / max_hours,
             "InitialStorage": lambda e_initial: e_initial,
             "Cost": lambda capital_cost: capital_cost
             }
@@ -194,7 +196,7 @@ class Transformation:
             "1": 1
             }
         
-            
+        n.stores["max_hours"] = max_hours_stores
         
         # Initialize with the parser and network
         self.init(n)
@@ -260,7 +262,7 @@ class Transformation:
         
         
         
-    def add_UnitBlock(self, attr_name, components_df, components_t):
+    def add_UnitBlock(self, attr_name, components_df, components_t, index=None):
         """
         Adds a unit block to the `unitblocks` dictionary for a given component.
 
@@ -318,9 +320,9 @@ class Transformation:
         name = components_df.name if isinstance(components_df, pd.Series) else attr_name.split("_")[0]
         
         if attr_name in ['Lines_parameters', 'Links_parameters']:
-            self.networkblock[name] = [attr_name.split("_")[0], converted_dict]
+            self.networkblock[name] = {"block": attr_name.split("_")[0], "variables": converted_dict}
         else:
-            self.unitblocks[name] = [attr_name.split("_")[0], converted_dict]   
+            self.unitblocks[name] = {"enumerate": f"UnitBlock_{index}" ,"block": attr_name.split("_")[0], "variables": converted_dict}   
         
     
     def remove_zero_p_nom_opt_components(self, n):
@@ -398,7 +400,7 @@ class Transformation:
                 generator_node.extend(components_df['bus_idx'].values)
                 # Understand which type of block we expect
                 # TODO add the rule to handle HydroUnitBlock
-                for component in components_df.index:
+                for index, component in enumerate(components_df.index):
                     if any(carrier in component for carrier in renewable_carriers):
                         attr_name = "IntermittentUnitBlock_parameters"
                     elif "storage_units" in components_type:
@@ -408,7 +410,7 @@ class Transformation:
                     else:
                         attr_name = "ThermalUnitBlock_parameters"
                     
-                    self.add_UnitBlock(attr_name, components_df.loc[component], components_t)
+                    self.add_UnitBlock(attr_name, components_df.loc[component], components_t, index)
         self.generator_node = {'name': 'GeneratorNode', 'type': 'float', 'size': ("NumberElectricalGenerators",), 'value': generator_node}
         
     def get_bus_idx(self, n, components_df, bus_series, column_name, dtype="uint32"):
