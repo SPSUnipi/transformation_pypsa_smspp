@@ -9,29 +9,25 @@ import sys
 import os
 
 # Aggiunge il percorso relativo per la cartella `config`
-sys.path.append(os.path.abspath("../configs"))
+sys.path.append(os.path.abspath("../scripts"))
 # Aggiunge il percorso relativo per la cartella `scripts`
 sys.path.append(os.path.abspath("."))
 
-
-from config import Config
-from network_definition import NetworkDefinition
 from transformation import Transformation
 from datetime import datetime
 from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
+import pypsa
 
 #%% Network definition with PyPSA
-config = Config()
-nd = NetworkDefinition(config)
-
-network = nd.n.copy()
+network_name = "microgrid_microgrid_thermal_1N"
+network = pypsa.Network(f"{network_name}.nc")
 network.optimize(solver_name='gurobi')
+
 
 #%% Transformation class
 then = datetime.now()
 transformation = Transformation(network)
 print(f"La classe di trasformazione ci mette {datetime.now() - then} secondi")
-
 
 
 # pySMSpp
@@ -64,15 +60,15 @@ generator_node = {transformation.generator_node['name']: Variable(
 kwargs = {**kwargs, **generator_node}
 
 # Lines
-line_variables = {}
-for name, variable in transformation.networkblock['Lines']['variables'].items():
-    line_variables[name] = Variable(
-        name,
-        variable['type'],
-        variable['size'],
-        variable['value'])
+# line_variables = {}
+# for name, variable in transformation.networkblock['Lines']['variables'].items():
+#     line_variables[name] = Variable(
+#         name,
+#         variable['type'],
+#         variable['size'],
+#         variable['value'])
     
-kwargs = {**kwargs, **line_variables}
+# kwargs = {**kwargs, **line_variables}
 
 # Add UC block
 sn.add(
@@ -106,8 +102,8 @@ for name, unit_block in transformation.unitblocks.items():
 configfile = SMSConfig(
     template="uc_solverconfig"
 )  # path to the template solver config file "uc_solverconfig"
-temporary_smspp_file = "./2buses_1th_1int.nc"  # path to temporary SMS++ file
-output_file = "./2buses_1th_1int.txt"  # path to the output file (optional)
+temporary_smspp_file = f"./output_files/{network_name}.nc"  # path to temporary SMS++ file
+output_file = f"./output_files/{network_name}.txt"  # path to the output file (optional)
 
 result = sn.optimize(
     configfile,
@@ -115,3 +111,4 @@ result = sn.optimize(
     output_file,
 )
 
+statistics = network.statistics()
