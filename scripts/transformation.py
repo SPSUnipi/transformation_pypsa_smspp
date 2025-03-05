@@ -101,8 +101,8 @@ class Transformation:
             "MaxStorage": lambda p_nom_opt, p_max_pu, max_hours: p_nom_opt * p_max_pu * max_hours,
             "MaxPrimaryPower": 0.0,
             "MaxSecondaryPower": 0.0,
-            "InitialPower": lambda p: p[0],
-            "InitialStorage": lambda state_of_charge: state_of_charge[0],
+            "InitialPower": lambda p: p.values[0][0],
+            "InitialStorage": lambda state_of_charge: state_of_charge.values[0][0],
             # "Cost": lambda marginal_cost: marginal_cost
             }
         
@@ -129,7 +129,7 @@ class Transformation:
             "EndLine": lambda end_line_idx: end_line_idx.values,
             "MinPowerFlow": lambda s_nom_opt: -s_nom_opt.values,
             "MaxPowerFlow": lambda s_nom_opt: s_nom_opt.values,
-            "LineSusceptance": lambda s_nom_opt: np.full(len(s_nom_opt), 0.0)
+            "LineSusceptance": lambda s_nom_opt: np.zeros_like(s_nom_opt)
             }
         
         self.Links_parameters = {
@@ -302,7 +302,7 @@ class Transformation:
             }
         
         
-    def add_UnitBlock(self, attr_name, components_df, components_t, components_type, n, index=None):
+    def add_UnitBlock(self, attr_name, components_df, components_t, components_type, n, component=None, index=None):
         """
         Adds a unit block to the `unitblocks` dictionary for a given component.
 
@@ -337,10 +337,10 @@ class Transformation:
                 args = []
                 
                 for param in param_names:
-                    if self.smspp_parameters[attr_name.split("_")[0]]['Size'][key] != 1:
+                    if self.smspp_parameters[attr_name.split("_")[0]]['Size'][key] not in [1, '[L]']:
                         weight = True if param in ['capital_cost', 'marginal_cost', 'marginal_cost_quadratic', 'start_up_cost', 'stand_by_cost'] else False
-                        arg = self.get_paramer_as_dense(n, components_type, param, weight)
-                    elif param in components_df.index:
+                        arg = self.get_paramer_as_dense(n, components_type, param, weight)[[component]]
+                    elif param in components_df.index or param in components_df.columns:
                         arg = components_df.get(param)
                     elif param in components_df.keys():
                         df = components_t[param]
@@ -368,7 +368,7 @@ class Transformation:
                 
                 # Apply function to the parameters
                 value = func(*args)
-                value = value[components_df.name].values if isinstance(value, pd.DataFrame) else value
+                value = value[components_df.index].values if isinstance(value, pd.DataFrame) else value
                 variable_type, variable_size = self.add_size_type(attr_name, key, value)
                 converted_dict[key] = {"value": value, "type": variable_type, "size": variable_size}
             else:
@@ -381,7 +381,7 @@ class Transformation:
         if attr_name in ['Lines_parameters', 'Links_parameters']:
             self.networkblock[name] = {"block": attr_name.split("_")[0], "variables": converted_dict}
         else:
-            self.unitblocks[name] = {"enumerate": f"UnitBlock_{index}" ,"block": attr_name.split("_")[0], "variables": converted_dict}   
+            self.unitblocks[components_df.index[0]] = {"enumerate": f"UnitBlock_{index}" ,"block": attr_name.split("_")[0], "variables": converted_dict}   
         
     
     def remove_zero_p_nom_opt_components(self, n):
@@ -464,7 +464,7 @@ class Transformation:
                     else:
                         attr_name = "ThermalUnitBlock_parameters"
                     
-                    self.add_UnitBlock(attr_name, components_df.loc[component], components_t, components.name, n, index)
+                    self.add_UnitBlock(attr_name, components_df.loc[[component]], components_t, components.name, n, component, index)
                     index += 1
         self.generator_node = {'name': 'GeneratorNode', 'type': 'float', 'size': ("NumberElectricalGenerators",), 'value': generator_node}
         
@@ -497,51 +497,97 @@ class Transformation:
         file_path = "../data/parameters_smspp.xlsx"
         self.smspp_parameters = pd.read_excel(file_path, sheet_name=None, index_col=0)
         
+    # def add_size_type(self, attr_name, key, args=None):
+    #     """
+    #     Adds the size and dtype of a variable (for the NetCDF file) based on the Excel file information.
+    
+    #     Parameters:
+    #     ----------
+    #     attr_name : str
+    #         Type of block (used as a key to access specific parameters).
+    #     key : str
+    #         Key to locate the specific variable details in the parameters.
+    #     args : optional, default None
+    #         Values of the variable we want to add. Used to determine the size.
+    
+    #     Returns:
+    #     -------
+    #     tuple
+    #         dtype : str
+    #             Data type of the variable (e.g., 'uint', 'float').
+    #         size : int or str
+    #             Size of the variable. Returns 1 if scalar or an appropriate size constant if matched.
+    #     """
+    #     # Ottieni i parametri del tipo di blocco e la riga corrispondente
+    #     row = self.smspp_parameters[attr_name.split("_")[0]].loc[key] if attr_name.split("_")[0] != 'Links' else self.smspp_parameters['Lines'].loc[key]
+    #     variable_type = row['Type']
+    
+    #     # Determina la dimensione della variabile
+    #     if args is None:
+    #         variable_size = ()
+    #     else:
+    #         # Isinstance required, otherwise I wouldn't find any length
+    #         length = 1 if isinstance(args, (float, int, np.integer)) else len(args)
+            
+    #         # Estrai le possibili dimensioni della variabile
+    #         size_arr = re.sub(r'\[|\]', '', str(row['Size']).replace("][", ","))
+    #         size_arr = size_arr.replace(" ", "").split("|")
+    
+    #         # Confronta la lunghezza di 'args' con le dimensioni specificate
+    #         for size in size_arr:
+    #             if size == '1':
+    #                 if length == self.conversion_dict[size]:
+    #                     variable_size = ()
+    #                     break
+    #             elif length == self.dimensions[self.conversion_dict[size]]:
+    #                 variable_size = (self.conversion_dict[size],)
+    #                 break
+    #     return variable_type, variable_size
+    
     def add_size_type(self, attr_name, key, args=None):
         """
         Adds the size and dtype of a variable (for the NetCDF file) based on the Excel file information.
-    
-        Parameters:
-        ----------
-        attr_name : str
-            Type of block (used as a key to access specific parameters).
-        key : str
-            Key to locate the specific variable details in the parameters.
-        args : optional, default None
-            Values of the variable we want to add. Used to determine the size.
-    
-        Returns:
-        -------
-        tuple
-            dtype : str
-                Data type of the variable (e.g., 'uint', 'float').
-            size : int or str
-                Size of the variable. Returns 1 if scalar or an appropriate size constant if matched.
         """
         # Ottieni i parametri del tipo di blocco e la riga corrispondente
         row = self.smspp_parameters[attr_name.split("_")[0]].loc[key] if attr_name.split("_")[0] != 'Links' else self.smspp_parameters['Lines'].loc[key]
         variable_type = row['Type']
+        
+        dimensions = self.dimensions.copy()
+        dimensions[1] = 1
     
         # Determina la dimensione della variabile
         if args is None:
             variable_size = ()
         else:
-            # Isinstance required, otherwise I wouldn't find any length
-            length = 1 if isinstance(args, (float, int, np.integer)) else len(args)
-            
-            # Estrai le possibili dimensioni della variabile
-            size_arr = re.sub(r'\[|\]', '', str(row['Size']).replace("][", ","))
-            size_arr = size_arr.replace(" ", "").split("|")
+            # Se args è un numero scalare, la dimensione è 1
+            if isinstance(args, (float, int, np.integer)):
+                variable_size = ()
+            else:
+                # Ottieni la forma se args è un array numpy
+                if isinstance(args, np.ndarray):
+                    shape = args.shape
+                else:
+                    shape = (len(args),)  # Se è una lista, trattala come un vettore
     
-            # Confronta la lunghezza di 'args' con le dimensioni specificate
-            for size in size_arr:
-                if size == '1':
-                    if length == self.conversion_dict[size]:
+                # Estrai le dimensioni attese dal file Excel
+                size_arr = re.sub(r'\[|\]', '', str(row['Size']).replace("][", ","))
+                size_arr = size_arr.replace(" ", "").split("|")
+    
+                for size in size_arr:
+                    if size == '1' and shape == (1,):
                         variable_size = ()
                         break
-                elif length == self.dimensions[self.conversion_dict[size]]:
-                    variable_size = (self.conversion_dict[size],)
-                    break
+                    else:
+                        # Scomponi espressioni tipo "T,L"
+                        size_components = size.split(",")
+                        expected_shape = tuple(dimensions[self.conversion_dict[s]] for s in size_components if s in self.conversion_dict)
+    
+                        if shape == expected_shape:
+                            if "1" in size_components or len(size_components) == 1:
+                                variable_size = (self.conversion_dict[size_components[0]],)  # Vettore
+                            else:
+                                variable_size = (self.conversion_dict[size_components[0]], self.conversion_dict[size_components[1]])  # Matrice
+                            break
         return variable_type, variable_size
         
     def lines_links(self):

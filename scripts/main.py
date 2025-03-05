@@ -115,3 +115,7 @@ result = sn.optimize(
     output_file,
 )
 
+statistics = network.statistics()
+operational_cost = statistics['Operational Expenditure'].sum()
+error = (operational_cost - result.objective_value) / operational_cost * 100
+print(f"Error PyPSA-SMS++ of {error}%")

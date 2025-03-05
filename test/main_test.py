@@ -19,8 +19,8 @@ from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
 import pypsa
 
 #%% Network definition with PyPSA
-network_name = "microgrid_microgrid_thermal_1N"
-network = pypsa.Network(f"{network_name}.nc")
+network_name = "microgrid_microgrid_ALL_1N"
+network = pypsa.Network(f"networks/{network_name}.nc")
 network.optimize(solver_name='gurobi')
 
 
@@ -112,3 +112,6 @@ result = sn.optimize(
 )
 
 statistics = network.statistics()
+operational_cost = statistics['Operational Expenditure'].sum()
+error = (operational_cost - result.objective_value) / operational_cost * 100
+print(f"Error PyPSA-SMS++ of {error}%")
