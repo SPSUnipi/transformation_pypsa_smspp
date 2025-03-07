@@ -36,7 +36,7 @@ class Transformation:
         Parameters for a ThermalUnitBlock
     """
 
-    def __init__(self, n, max_hours_stores=10):
+    def __init__(self, n, max_hours_stores=1):
         """
         Initializes the Transformation class.
 
@@ -109,19 +109,19 @@ class Transformation:
         self.BatteryUnitBlock_store_parameters = {
             "Kappa": 1.0,
             "MaxPower": lambda e_nom_opt, e_max_pu, max_hours: e_nom_opt * e_max_pu / max_hours,
-            "MinPower": lambda e_nom_opt, e_min_pu, max_hours: e_nom_opt * e_min_pu / max_hours,
+            "MinPower": lambda e_nom_opt, e_max_pu, max_hours: - e_nom_opt * e_max_pu / max_hours,
             # "DeltaRampUp": np.nan,
             # "DeltaRampDown": np.nan,
-            "ExtractingBatteryRho": 1.0,
-            "StoringBatteryRho": 1.0,
+            "ExtractingBatteryRho": lambda e_max_pu: np.ones_like(e_max_pu),
+            "StoringBatteryRho": lambda e_max_pu: np.ones_like(e_max_pu),
             "Demand": 0.0,
             "MinStorage": 0.0,
-            "MaxStorage": lambda e_nom_opt, e_max_pu: e_nom_opt * e_max_pu,
+            "MaxStorage": lambda e_nom_opt: e_nom_opt,
             "MaxPrimaryPower": 0.0,
             "MaxSecondaryPower": 0.0,
             "InitialPower": lambda e_initial, max_hours: e_initial / max_hours,
             "InitialStorage": lambda e_initial: e_initial,
-            "Cost": lambda capital_cost: capital_cost
+            #"Cost": lambda capital_cost: capital_cost
             }
                 
         self.Lines_parameters = {
@@ -137,31 +137,29 @@ class Transformation:
             "EndLine": lambda end_line_idx: end_line_idx.values,
             "MinPowerFlow": lambda p_nom_opt, p_min_pu: p_nom_opt.values * p_min_pu.values,
             "MaxPowerFlow": lambda p_nom_opt, p_max_pu: p_nom_opt.values * p_max_pu.values,
-            "LineSusceptance": lambda s_nom_opt: np.full(len(s_nom_opt), 0.0)
+            "LineSusceptance": lambda s_nom_opt: np.zeros_like(s_nom_opt)
             }
 
         self.HydroUnitBlock_parameters = {
-            "NumberReservoirs": None,
-            "NumberArcs": None,
-            "StartArc": None,
-            "EndArc": None,
-            "MaxVolumetric": None,
-            "MinVolumetric": None,
-            "Inflows": None,
-            "MaxFlow": None,
-            "MinFlow": None,
-            "MaxPower": None,
-            "MinPower": None,
-            "PrimaryRho": None,
-            "SecondaryRho": None,
-            "NumberPieces": None,
-            "ConstantTerm": None,
-            "LinearTerm": None,
-            "DeltaRampUp": None,
-            "DeltaRampDown": None,
-            "DownhillFlow": None,
-            "UphillFlow": None,
-            "InertiaPower": None,
+            "StartArc": lambda p_nom_opt: np.full(len(p_nom_opt), 0),
+            "EndArc": lambda p_nom_opt: np.full(len(p_nom_opt), 0),
+            "MaxVolumetric": lambda p_nom_opt, max_hours: p_nom_opt * max_hours,
+            "MinVolumetric": 0.0,
+            "Inflows": lambda inflow: inflow,
+            "MaxFlow": lambda p_nom_opt, p_max_pu, inflow: np.array([p_nom_opt*p_max_pu * 100., 100*inflow.max(), 0.]),
+            "MinFlow": lambda inflow: np.array([0., 0., -100*inflow.max()], dtype=NP_DOUBLE),
+            "MaxPower": lambda p_nom_opt, p_max_pu: np.array([p_nom_opt*p_max_pu, 0., 0.]),
+            "MinPower": lambda p_nom_opt, p_min_pu: np.array([0., 0., p_nom_opt*p_min_pu]),
+            "PrimaryRho": 0.0,
+            "SecondaryRho": 0.0,
+            "NumberPieces": lambda p_nom_opt: np.full(len(p_nom_opt), 0),
+            "ConstantTerm": 0.0,
+            "LinearTerm": lambda marginal_cost: marginal_cost,
+            # "DeltaRampUp": np.nan,
+            # "DeltaRampDown": np.nan,
+            "DownhillFlow": 0.0,
+            "UphillFlow": 0.0,
+            "InertiaPower": 1.0,
             "InitialFlowRate": None,
             "InitialVolumetric": None
             }
@@ -284,10 +282,12 @@ class Transformation:
                 name: sum(len(getattr(n, comp)) for comp in comps)
                 for name, comps in components.items()
             },
-            "NumberArcs": 0,
-            "NumberReservoirs": 0,
             "TotalNumberPieces": 0,
             }
+        
+        self.dimensions["NumberReservoirs"] = (n.storage_units.carrier == 'hydro').sum()
+        self.dimensions["NumberArcs"] = 3 * self.dimensions["NumberReservoirs"]
+        self.dimensions["NumberElectricalGenerators"] += 2*self.dimensions["NumberReservoirs"] 
         
         components = {
             "Lines": ['lines'],
@@ -337,7 +337,7 @@ class Transformation:
                 args = []
                 
                 for param in param_names:
-                    if self.smspp_parameters[attr_name.split("_")[0]]['Size'][key] not in [1, '[L]']:
+                    if self.smspp_parameters[attr_name.split("_")[0]]['Size'][key] not in [1, '[L]', '[NA]']:
                         weight = True if param in ['capital_cost', 'marginal_cost', 'marginal_cost_quadratic', 'start_up_cost', 'stand_by_cost'] else False
                         arg = self.get_paramer_as_dense(n, components_type, param, weight)[[component]]
                     elif param in components_df.index or param in components_df.columns:
@@ -369,6 +369,7 @@ class Transformation:
                 # Apply function to the parameters
                 value = func(*args)
                 value = value[components_df.index].values if isinstance(value, pd.DataFrame) else value
+                value = value.item() if isinstance(value, pd.Series) else value
                 variable_type, variable_size = self.add_size_type(attr_name, key, value)
                 converted_dict[key] = {"value": value, "type": variable_type, "size": variable_size}
             else:
@@ -379,7 +380,7 @@ class Transformation:
         name = components_df.name if isinstance(components_df, pd.Series) else attr_name.split("_")[0]
         
         if attr_name in ['Lines_parameters', 'Links_parameters']:
-            self.networkblock[name] = {"block": attr_name.split("_")[0], "variables": converted_dict}
+            self.networkblock[name] = {"block": 'Lines', "variables": converted_dict}
         else:
             self.unitblocks[components_df.index[0]] = {"enumerate": f"UnitBlock_{index}" ,"block": attr_name.split("_")[0], "variables": converted_dict}   
         
@@ -419,7 +420,7 @@ class Transformation:
         The components to the `unitblocks` dictionary, with distinct attributes for intermittent and thermal units.
         
         """
-        renewable_carriers = ['solar', 'solar-hsat', 'onwind', 'offwind-ac', 'offwind-dc', 'offwind-float', 'hydro', 'PV', 'wind']
+        renewable_carriers = ['solar', 'solar-hsat', 'onwind', 'offwind-ac', 'offwind-dc', 'offwind-float', 'hydro', 'PV', 'wind', 'ror']
         nominal_attrs = {
             "Generator": "p_nom",
             "Line": "s_nom",
@@ -451,12 +452,20 @@ class Transformation:
                 self.add_UnitBlock(attr_name, components_df, components_t, components.name, n)
             else:
                 self.get_bus_idx(n, components_df, components_df.bus, "bus_idx")
-                generator_node.extend(components_df['bus_idx'].values)
+                for bus, carrier in zip(components_df['bus_idx'].values, components_df['carrier']):
+                    if carrier == 'hydro':
+                        generator_node.extend([bus] * 3)  # Repeat three times
+                    else:
+                        generator_node.append(bus)  # Normal case
+
+                # generator_node.extend(components_df['bus_idx'].values)
                 # Understand which type of block we expect
                 # TODO add the rule to handle HydroUnitBlock
                 for component in components_df.index:
                     if any(carrier in components_df.loc[component].carrier for carrier in renewable_carriers):
                         attr_name = "IntermittentUnitBlock_parameters"
+                    elif components_df.loc[component].carrier == 'hydro':
+                        attr_name = 'HydroUnitBlock_parameters'
                     elif "storage_units" in components_type:
                         attr_name = "BatteryUnitBlock_parameters"
                     elif "store" in components_type:
@@ -497,52 +506,6 @@ class Transformation:
         file_path = "../data/parameters_smspp.xlsx"
         self.smspp_parameters = pd.read_excel(file_path, sheet_name=None, index_col=0)
         
-    # def add_size_type(self, attr_name, key, args=None):
-    #     """
-    #     Adds the size and dtype of a variable (for the NetCDF file) based on the Excel file information.
-    
-    #     Parameters:
-    #     ----------
-    #     attr_name : str
-    #         Type of block (used as a key to access specific parameters).
-    #     key : str
-    #         Key to locate the specific variable details in the parameters.
-    #     args : optional, default None
-    #         Values of the variable we want to add. Used to determine the size.
-    
-    #     Returns:
-    #     -------
-    #     tuple
-    #         dtype : str
-    #             Data type of the variable (e.g., 'uint', 'float').
-    #         size : int or str
-    #             Size of the variable. Returns 1 if scalar or an appropriate size constant if matched.
-    #     """
-    #     # Ottieni i parametri del tipo di blocco e la riga corrispondente
-    #     row = self.smspp_parameters[attr_name.split("_")[0]].loc[key] if attr_name.split("_")[0] != 'Links' else self.smspp_parameters['Lines'].loc[key]
-    #     variable_type = row['Type']
-    
-    #     # Determina la dimensione della variabile
-    #     if args is None:
-    #         variable_size = ()
-    #     else:
-    #         # Isinstance required, otherwise I wouldn't find any length
-    #         length = 1 if isinstance(args, (float, int, np.integer)) else len(args)
-            
-    #         # Estrai le possibili dimensioni della variabile
-    #         size_arr = re.sub(r'\[|\]', '', str(row['Size']).replace("][", ","))
-    #         size_arr = size_arr.replace(" ", "").split("|")
-    
-    #         # Confronta la lunghezza di 'args' con le dimensioni specificate
-    #         for size in size_arr:
-    #             if size == '1':
-    #                 if length == self.conversion_dict[size]:
-    #                     variable_size = ()
-    #                     break
-    #             elif length == self.dimensions[self.conversion_dict[size]]:
-    #                 variable_size = (self.conversion_dict[size],)
-    #                 break
-    #     return variable_type, variable_size
     
     def add_size_type(self, attr_name, key, args=None):
         """
