@@ -29,7 +29,7 @@ then = datetime.now()
 transformation = Transformation(network)
 print(f"La classe di trasformazione ci mette {datetime.now() - then} secondi")
 
-
+# %% SMSpp optimization
 
 # pySMSpp
 sn = SMSNetwork(file_type=SMSFileType.eBlockFile) # Empty Block
@@ -62,14 +62,14 @@ kwargs = {**kwargs, **generator_node}
 
 # Lines
 line_variables = {}
-for name, variable in transformation.networkblock['Lines']['variables'].items():
-    line_variables[name] = Variable(
-        name,
-        variable['type'],
-        variable['size'],
-        variable['value'])
+# for name, variable in transformation.networkblock['Lines']['variables'].items():
+#     line_variables[name] = Variable(
+#         name,
+#         variable['type'],
+#         variable['size'],
+#         variable['value'])
     
-kwargs = {**kwargs, **line_variables}
+# kwargs = {**kwargs, **line_variables}
 
 # Add UC block
 sn.add(
@@ -89,6 +89,10 @@ for name, unit_block in transformation.unitblocks.items():
             variable['type'],
             variable['size'],
             variable['value'])
+        
+    if 'dimensions' in unit_block.keys():
+        for dimension_name, dimension in unit_block['dimensions'].items():
+            kwargs[dimension_name] = dimension
     
     unit_block_toadd = Block().from_kwargs(
         block_type=unit_block['block'],

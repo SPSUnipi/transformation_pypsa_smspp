@@ -141,27 +141,27 @@ class Transformation:
             }
 
         self.HydroUnitBlock_parameters = {
-            "StartArc": lambda p_nom_opt: np.full(len(p_nom_opt), 0),
-            "EndArc": lambda p_nom_opt: np.full(len(p_nom_opt), 0),
-            "MaxVolumetric": lambda p_nom_opt, max_hours: p_nom_opt * max_hours,
+            "StartArc": lambda p_nom: np.full(len(p_nom)*3, 0),
+            "EndArc": lambda p_nom: np.full(len(p_nom)*3, 1),
+            "MaxVolumetric": lambda p_nom_opt, max_hours: (p_nom_opt * max_hours),
             "MinVolumetric": 0.0,
-            "Inflows": lambda inflow: inflow,
-            "MaxFlow": lambda p_nom_opt, p_max_pu, inflow: np.array([p_nom_opt*p_max_pu * 100., 100*inflow.max(), 0.]),
-            "MinFlow": lambda inflow: np.array([0., 0., -100*inflow.max()], dtype=NP_DOUBLE),
-            "MaxPower": lambda p_nom_opt, p_max_pu: np.array([p_nom_opt*p_max_pu, 0., 0.]),
-            "MinPower": lambda p_nom_opt, p_min_pu: np.array([0., 0., p_nom_opt*p_min_pu]),
-            "PrimaryRho": 0.0,
-            "SecondaryRho": 0.0,
-            "NumberPieces": lambda p_nom_opt: np.full(len(p_nom_opt), 0),
-            "ConstantTerm": 0.0,
-            "LinearTerm": lambda marginal_cost: marginal_cost,
+            "Inflows": lambda inflow: inflow.values.transpose(),
+            "MaxFlow": lambda p_nom_opt, p_max_pu, inflow: (np.array([100* (p_nom_opt*p_max_pu), 100*np.full_like(p_max_pu, inflow.max()), (0.*p_max_pu)])).squeeze().transpose(),
+            "MinFlow": lambda inflow: np.array([0., 0., -100*inflow.values.max()]),
+            "MaxPower": lambda p_nom_opt, p_max_pu: (np.array([(p_nom_opt*p_max_pu), (0.*p_max_pu), (0. *p_max_pu)])).squeeze().transpose(),
+            "MinPower": lambda p_nom_opt, p_min_pu: (np.array([(p_nom_opt*p_min_pu), (0.*p_min_pu), (0. *p_min_pu)])).squeeze().transpose(),
+            # "PrimaryRho": lambda p_nom: np.full(len(p_nom)*3, 0.),
+            # "SecondaryRho": lambda p_nom: np.full(len(p_nom)*3, 0.),
+            "NumberPieces": lambda p_nom: np.full(len(p_nom)*3, 1),
+            "ConstantTerm": lambda p_nom: np.full(len(p_nom)*3, 0),
+            "LinearTerm": lambda efficiency_dispatch, efficiency_store: np.array([1/efficiency_dispatch.values.max(), 0., efficiency_store.values.max()]),
             # "DeltaRampUp": np.nan,
             # "DeltaRampDown": np.nan,
-            "DownhillFlow": 0.0,
-            "UphillFlow": 0.0,
-            "InertiaPower": 1.0,
-            "InitialFlowRate": None,
-            "InitialVolumetric": None
+            "DownhillFlow": lambda p_nom: np.full(len(p_nom)*3, 0.),
+            "UphillFlow": lambda p_nom: np.full(len(p_nom)*3, 0.),
+            #"InertiaPower": 1.0,
+            # "InitialFlowRate": lambda inflow: inflow.values[0],
+            "InitialVolumetric": lambda state_of_charge_initial, max_hours, p_nom_opt: state_of_charge_initial * max_hours * p_nom_opt
             }
         
         # If the PyPSA DataFrame does not contain a value, it is taken from this dict
@@ -282,12 +282,9 @@ class Transformation:
                 name: sum(len(getattr(n, comp)) for comp in comps)
                 for name, comps in components.items()
             },
-            "TotalNumberPieces": 0,
+            
             }
         
-        self.dimensions["NumberReservoirs"] = (n.storage_units.carrier == 'hydro').sum()
-        self.dimensions["NumberArcs"] = 3 * self.dimensions["NumberReservoirs"]
-        self.dimensions["NumberElectricalGenerators"] += 2*self.dimensions["NumberReservoirs"] 
         
         components = {
             "Lines": ['lines'],
@@ -329,6 +326,7 @@ class Transformation:
             unitblock_parameters = getattr(self, attr_name)
         else:
             print("Block not yet implemented") # TODO: Replace with logger
+            
         
         for key, func in unitblock_parameters.items():
             if callable(func):
@@ -337,7 +335,7 @@ class Transformation:
                 args = []
                 
                 for param in param_names:
-                    if self.smspp_parameters[attr_name.split("_")[0]]['Size'][key] not in [1, '[L]', '[NA]']:
+                    if self.smspp_parameters[attr_name.split("_")[0]]['Size'][key] not in [1, '[L]', '[NA]', '[NP]']:
                         weight = True if param in ['capital_cost', 'marginal_cost', 'marginal_cost_quadratic', 'start_up_cost', 'stand_by_cost'] else False
                         arg = self.get_paramer_as_dense(n, components_type, param, weight)[[component]]
                     elif param in components_df.index or param in components_df.columns:
@@ -384,6 +382,20 @@ class Transformation:
         else:
             self.unitblocks[components_df.index[0]] = {"enumerate": f"UnitBlock_{index}" ,"block": attr_name.split("_")[0], "variables": converted_dict}   
         
+        if attr_name == 'HydroUnitBlock_parameters':
+            dimensions = self.hydro_dimensions()
+            self.unitblocks[components_df.index[0]]['dimensions'] = dimensions
+            
+    
+    def hydro_dimensions(self):
+        dimensions = {}
+        dimensions["NumberReservoirs"] = 1
+        dimensions["NumberArcs"] = 3 * dimensions["NumberReservoirs"]
+        dimensions["TotalNumberPieces"] = 3
+        self.dimensions["NumberElectricalGenerators"] += 2*dimensions["NumberReservoirs"] 
+        
+        return dimensions
+            
     
     def remove_zero_p_nom_opt_components(self, n):
         # Lista dei componenti che hanno l'attributo p_nom_opt
@@ -420,7 +432,7 @@ class Transformation:
         The components to the `unitblocks` dictionary, with distinct attributes for intermittent and thermal units.
         
         """
-        renewable_carriers = ['solar', 'solar-hsat', 'onwind', 'offwind-ac', 'offwind-dc', 'offwind-float', 'hydro', 'PV', 'wind', 'ror']
+        renewable_carriers = ['solar', 'solar-hsat', 'onwind', 'offwind-ac', 'offwind-dc', 'offwind-float', 'PV', 'wind', 'ror']
         nominal_attrs = {
             "Generator": "p_nom",
             "Line": "s_nom",
@@ -445,36 +457,41 @@ class Transformation:
                 self.get_bus_idx(n, components_df, components_df.bus1, "end_line_idx")
                 attr_name = "Lines_parameters"
                 self.add_UnitBlock(attr_name, components_df, components_t, components.name, n)
+                continue
             elif components_type == 'links':
                 self.get_bus_idx(n, components_df, components_df.bus0, "start_line_idx")
                 self.get_bus_idx(n, components_df, components_df.bus1, "end_line_idx")
                 attr_name = "Links_parameters"
                 self.add_UnitBlock(attr_name, components_df, components_t, components.name, n)
-            else:
+                continue
+            elif components_type == 'storage_units':
                 self.get_bus_idx(n, components_df, components_df.bus, "bus_idx")
                 for bus, carrier in zip(components_df['bus_idx'].values, components_df['carrier']):
                     if carrier == 'hydro':
                         generator_node.extend([bus] * 3)  # Repeat three times
                     else:
                         generator_node.append(bus)  # Normal case
+            else:
+                self.get_bus_idx(n, components_df, components_df.bus, "bus_idx")
+                generator_node.extend(components_df['bus_idx'].values)
 
                 # generator_node.extend(components_df['bus_idx'].values)
                 # Understand which type of block we expect
-                # TODO add the rule to handle HydroUnitBlock
-                for component in components_df.index:
-                    if any(carrier in components_df.loc[component].carrier for carrier in renewable_carriers):
-                        attr_name = "IntermittentUnitBlock_parameters"
-                    elif components_df.loc[component].carrier == 'hydro':
-                        attr_name = 'HydroUnitBlock_parameters'
-                    elif "storage_units" in components_type:
-                        attr_name = "BatteryUnitBlock_parameters"
-                    elif "store" in components_type:
-                        attr_name = "BatteryUnitBlock_store_parameters"
-                    else:
-                        attr_name = "ThermalUnitBlock_parameters"
-                    
-                    self.add_UnitBlock(attr_name, components_df.loc[[component]], components_t, components.name, n, component, index)
-                    index += 1
+
+            for component in components_df.index:
+                if any(carrier in components_df.loc[component].carrier for carrier in renewable_carriers):
+                    attr_name = "IntermittentUnitBlock_parameters"
+                elif components_df.loc[component].carrier == 'hydro':
+                    attr_name = 'HydroUnitBlock_parameters'
+                elif "storage_units" in components_type:
+                    attr_name = "BatteryUnitBlock_parameters"
+                elif "store" in components_type:
+                    attr_name = "BatteryUnitBlock_store_parameters"
+                else:
+                    attr_name = "ThermalUnitBlock_parameters"
+                
+                self.add_UnitBlock(attr_name, components_df.loc[[component]], components_t, components.name, n, component, index)
+                index += 1
         self.generator_node = {'name': 'GeneratorNode', 'type': 'float', 'size': ("NumberElectricalGenerators",), 'value': generator_node}
         
     def get_bus_idx(self, n, components_df, bus_series, column_name, dtype="uint32"):
@@ -516,7 +533,12 @@ class Transformation:
         variable_type = row['Type']
         
         dimensions = self.dimensions.copy()
+        
+        # Useful only for this case. If variable, a solution must be found
         dimensions[1] = 1
+        dimensions["NumberReservoirs"] = 1
+        dimensions["NumberArcs"] = 3 * dimensions["NumberReservoirs"]
+        dimensions["TotalNumberPieces"] = 3
     
         # Determina la dimensione della variabile
         if args is None:
@@ -567,6 +589,7 @@ class Transformation:
         elif "Links" in self.networkblock and "Lines" not in self.networkblock:
             # Se ci sono solo i Links, rinominali in Lines
             self.networkblock["Lines"] = self.networkblock.pop("Links")
+            
             
             
 
