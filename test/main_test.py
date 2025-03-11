@@ -19,7 +19,7 @@ from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
 import pypsa
 
 #%% Network definition with PyPSA
-network_name = "microgrid_microgrid_ALL_1N"
+network_name = "microgrid_microgrid_ALL_4N"
 network = pypsa.Network(f"networks/{network_name}.nc")
 network.optimize(solver_name='gurobi')
 
@@ -61,15 +61,16 @@ generator_node = {transformation.generator_node['name']: Variable(
 kwargs = {**kwargs, **generator_node}
 
 # Lines
-line_variables = {}
-# for name, variable in transformation.networkblock['Lines']['variables'].items():
-#     line_variables[name] = Variable(
-#         name,
-#         variable['type'],
-#         variable['size'],
-#         variable['value'])
-    
-# kwargs = {**kwargs, **line_variables}
+if kwargs['NumberLines'] > 0:
+    line_variables = {}
+    for name, variable in transformation.networkblock['Lines']['variables'].items():
+        line_variables[name] = Variable(
+            name,
+            variable['type'],
+            variable['size'],
+            variable['value'])
+        
+    kwargs = {**kwargs, **line_variables}
 
 # Add UC block
 sn.add(
