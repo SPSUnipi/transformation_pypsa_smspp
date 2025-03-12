@@ -19,9 +19,10 @@ from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
 import pypsa
 
 #%% Network definition with PyPSA
-network_name = "microgrid_microgrid_ALL_4N"
+network_name = "base_s_05_elec_lvopt_1h"
 network = pypsa.Network(f"networks/{network_name}.nc")
-network.optimize(solver_name='gurobi')
+
+# network.optimize(solver_name='gurobi')
 
 
 #%% Transformation class
@@ -30,6 +31,7 @@ transformation = Transformation(network)
 print(f"La classe di trasformazione ci mette {datetime.now() - then} secondi")
 
 # %% SMSpp optimization
+
 
 # pySMSpp
 sn = SMSNetwork(file_type=SMSFileType.eBlockFile) # Empty Block

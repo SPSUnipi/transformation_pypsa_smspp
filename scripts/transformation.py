@@ -187,6 +187,7 @@ class Transformation:
             "NE": "NumberElectricalGenerators",
             "N": "NumberNodes",
             "L": "NumberLines",
+            "Li": "NumberLinks",
             "NA": "NumberArcs",
             "NR": "NumberReservoirs",
             "NP": "TotalNumberPieces",
@@ -335,7 +336,7 @@ class Transformation:
                 args = []
                 
                 for param in param_names:
-                    if self.smspp_parameters[attr_name.split("_")[0]]['Size'][key] not in [1, '[L]', '[NA]', '[NP]']:
+                    if self.smspp_parameters[attr_name.split("_")[0]]['Size'][key] not in [1, '[L]', '[Li]', '[NA]', '[NP]']:
                         weight = True if param in ['capital_cost', 'marginal_cost', 'marginal_cost_quadratic', 'start_up_cost', 'stand_by_cost'] else False
                         arg = self.get_paramer_as_dense(n, components_type, param, weight)[[component]]
                     elif param in components_df.index or param in components_df.columns:
@@ -475,7 +476,7 @@ class Transformation:
                 self.get_bus_idx(n, components_df, components_df.bus, "bus_idx")
                 generator_node.extend(components_df['bus_idx'].values)
 
-                # generator_node.extend(components_df['bus_idx'].values)
+
                 # Understand which type of block we expect
 
             for component in components_df.index:
@@ -529,7 +530,7 @@ class Transformation:
         Adds the size and dtype of a variable (for the NetCDF file) based on the Excel file information.
         """
         # Ottieni i parametri del tipo di blocco e la riga corrispondente
-        row = self.smspp_parameters[attr_name.split("_")[0]].loc[key] if attr_name.split("_")[0] != 'Links' else self.smspp_parameters['Lines'].loc[key]
+        row = self.smspp_parameters[attr_name.split("_")[0]].loc[key]
         variable_type = row['Type']
         
         dimensions = self.dimensions.copy()
@@ -539,6 +540,8 @@ class Transformation:
         dimensions["NumberReservoirs"] = 1
         dimensions["NumberArcs"] = 3 * dimensions["NumberReservoirs"]
         dimensions["TotalNumberPieces"] = 3
+        dimensions["NumberLines"] = self.dimensions_lines['Lines']
+        dimensions["NumberLinks"] = self.dimensions_lines['Links']
     
         # Determina la dimensione della variabile
         if args is None:
@@ -577,12 +580,12 @@ class Transformation:
         
     def lines_links(self):
         if "Lines" in self.networkblock and "Links" in self.networkblock:
-            for key, value in self.networkblock['Lines'][1].items():
+            for key, value in self.networkblock['Lines']['variables'].items():
                 # Required to avoid problems for line susceptance
-                if not isinstance(self.networkblock['Lines'][1][key]['value'], (int, float, np.integer)):
-                    self.networkblock['Lines'][1][key]['value'] = np.concatenate([
-                        self.networkblock["Lines"][1][key]['value'], 
-                        self.networkblock["Links"][1][key]['value']
+                if not isinstance(self.networkblock['Lines']['variables'][key]['value'], (int, float, np.integer)):
+                    self.networkblock['Lines']['variables'][key]['value'] = np.concatenate([
+                        self.networkblock["Lines"]['variables'][key]['value'], 
+                        self.networkblock["Links"]['variables'][key]['value']
                     ])
             self.networkblock.pop("Links", None)
     

@@ -33,7 +33,6 @@ then = datetime.now()
 transformation = Transformation(network)
 print(f"La classe di trasformazione ci mette {datetime.now() - then} secondi")
 
-m
 
 # pySMSpp
 sn = SMSNetwork(file_type=SMSFileType.eBlockFile) # Empty Block
