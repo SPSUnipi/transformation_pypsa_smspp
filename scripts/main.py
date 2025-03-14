@@ -19,6 +19,7 @@ from network_definition import NetworkDefinition
 from transformation import Transformation
 from datetime import datetime
 from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
+from network_correction import parse_txt_file
 
 #%% Network definition with PyPSA
 config = Config()
@@ -119,3 +120,12 @@ statistics = network.statistics()
 operational_cost = statistics['Operational Expenditure'].sum()
 error = (operational_cost - result.objective_value) / operational_cost * 100
 print(f"Error PyPSA-SMS++ of {error}%")
+
+# Esegui la funzione sul file di testo
+data_dict = parse_txt_file(output_file)
+
+
+
+
+
+

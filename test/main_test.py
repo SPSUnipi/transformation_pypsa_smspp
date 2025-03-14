@@ -17,12 +17,22 @@ from transformation import Transformation
 from datetime import datetime
 from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
 import pypsa
+from network_correction import (
+    clean_marginal_cost,
+    clean_global_constraints,
+    clean_e_sum
+    )
 
 #%% Network definition with PyPSA
-network_name = "base_s_05_elec_lvopt_1h"
+network_name = "base_s_5_elec_lvopt_1h"
 network = pypsa.Network(f"networks/{network_name}.nc")
 
-# network.optimize(solver_name='gurobi')
+network = clean_marginal_cost(network)
+network = clean_global_constraints(network)
+network = clean_e_sum(network)
+
+network.optimize(solver_name='gurobi')
+network.export_to_netcdf()
 
 
 #%% Transformation class
@@ -31,7 +41,6 @@ transformation = Transformation(network)
 print(f"La classe di trasformazione ci mette {datetime.now() - then} secondi")
 
 # %% SMSpp optimization
-
 
 # pySMSpp
 sn = SMSNetwork(file_type=SMSFileType.eBlockFile) # Empty Block

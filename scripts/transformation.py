@@ -83,7 +83,7 @@ class Transformation:
             "LinearTerm": lambda marginal_cost: marginal_cost,
             "ConstantTerm": 0.0,
             "StartUpCost": lambda start_up_cost: start_up_cost,
-            "InitialPower": lambda p: p.values[0][0],
+            "InitialPower": lambda p: p[0][0],
             "FixedConsumption": 0.0,
             "InertiaCommitment": 1.0
         }
@@ -101,8 +101,8 @@ class Transformation:
             "MaxStorage": lambda p_nom_opt, p_max_pu, max_hours: p_nom_opt * p_max_pu * max_hours,
             "MaxPrimaryPower": 0.0,
             "MaxSecondaryPower": 0.0,
-            "InitialPower": lambda p: p.values[0][0],
-            "InitialStorage": lambda state_of_charge: state_of_charge.values[0][0],
+            "InitialPower": lambda p: p[0][0],
+            "InitialStorage": lambda state_of_charge: state_of_charge[0][0],
             # "Cost": lambda marginal_cost: marginal_cost
             }
         
@@ -341,29 +341,10 @@ class Transformation:
                         arg = self.get_paramer_as_dense(n, components_type, param, weight)[[component]]
                     elif param in components_df.index or param in components_df.columns:
                         arg = components_df.get(param)
-                    elif param in components_df.keys():
+                    elif param in components_t.keys():
                         df = components_t[param]
-                        arg = df[components_df.name].values
+                        arg = df[components_df.index].values
                     args.append(arg)
-                    
-                    
-                    ###### Old version ######
-                    # ## If it is a dynamic parameter save it
-                    # if param in components_t:
-                    #     df = components_t[param]
-                    #     # Check if the df is not empty (probably unnecessary)
-                    #     if not df.empty and components_df.name in df.columns:
-                    #         args.append(df[components_df.name].values)
-                    #         # arg = self.get_paramer_as_dense(n, components_type, param, weight)
-                    #         # args.append(arg)
-                    #     else:
-                    #         arg = components_df.get(param)
-                    #         # arg = self.get_paramer_as_dense(n, components_type, param, weight)
-                    #         args.append(arg)
-                    # else:
-                    #     arg = components_df.get(param)
-                    #     # arg = self.get_paramer_as_dense(n, components_type, param, weight)
-                    #     args.append(arg)
                 
                 # Apply function to the parameters
                 value = func(*args)
@@ -592,6 +573,8 @@ class Transformation:
         elif "Links" in self.networkblock and "Lines" not in self.networkblock:
             # Se ci sono solo i Links, rinominali in Lines
             self.networkblock["Lines"] = self.networkblock.pop("Links")
+            for key, value in self.networkblock['Lines']['variables'].items():
+                value['size'] = tuple('NumberLines' if x == 'NumberLinks' else x for x in value['size'])
             
             
             
