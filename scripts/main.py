@@ -116,15 +116,16 @@ result = sn.optimize(
     output_file,
 )
 
+# Esegui la funzione sul file di testo
+data_dict = parse_txt_file(output_file)
+
+print(f"Il solver ci ha messo {data_dict['elapsed_time']}s")
+print(f"Il tempo totale (trasformazione+pysmspp+ottimizzazione smspp) è {datetime.now() - then}")
+
 statistics = network.statistics()
 operational_cost = statistics['Operational Expenditure'].sum()
 error = (operational_cost - result.objective_value) / operational_cost * 100
 print(f"Error PyPSA-SMS++ of {error}%")
-
-# Esegui la funzione sul file di testo
-data_dict = parse_txt_file(output_file)
-
-
 
 
 

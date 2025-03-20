@@ -20,7 +20,13 @@ import pypsa
 from network_correction import (
     clean_marginal_cost,
     clean_global_constraints,
-    clean_e_sum
+    clean_e_sum,
+    clean_efficiency_link,
+    clean_ciclicity_storage,
+    clean_marginal_cost_intermittent,
+    clean_storage_units,
+    clean_stores,
+    parse_txt_file
     )
 
 #%% Network definition with PyPSA
@@ -30,6 +36,12 @@ network = pypsa.Network(f"networks/{network_name}.nc")
 network = clean_marginal_cost(network)
 network = clean_global_constraints(network)
 network = clean_e_sum(network)
+network = clean_efficiency_link(network)
+# network = clean_ciclicity_storage(network)
+network = clean_marginal_cost_intermittent(network)
+network = clean_storage_units(network)
+network = clean_stores(network)
+
 
 network.optimize(solver_name='gurobi')
 network.export_to_netcdf()
@@ -127,6 +139,12 @@ result = sn.optimize(
     temporary_smspp_file,
     output_file,
 )
+
+# Esegui la funzione sul file di testo
+data_dict = parse_txt_file(output_file)
+
+print(f"Il solver ci ha messo {data_dict['elapsed_time']}s")
+print(f"Il tempo totale (trasformazione+pysmspp+ottimizzazione smspp) è {datetime.now() - then}")
 
 statistics = network.statistics()
 operational_cost = statistics['Operational Expenditure'].sum()

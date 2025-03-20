@@ -102,7 +102,7 @@ class Transformation:
             "MaxPrimaryPower": 0.0,
             "MaxSecondaryPower": 0.0,
             "InitialPower": lambda p: p[0][0],
-            "InitialStorage": lambda state_of_charge: state_of_charge[0][0],
+            "InitialStorage": lambda state_of_charge, cyclic_state_of_charge: -1 if cyclic_state_of_charge.values else state_of_charge[0][0],
             # "Cost": lambda marginal_cost: marginal_cost
             }
         
@@ -120,7 +120,7 @@ class Transformation:
             "MaxPrimaryPower": 0.0,
             "MaxSecondaryPower": 0.0,
             "InitialPower": lambda e_initial, max_hours: e_initial / max_hours,
-            "InitialStorage": lambda e_initial: e_initial,
+            "InitialStorage": lambda e_initial, e_cyclic: -1 if e_cyclic.values else e_initial,
             #"Cost": lambda capital_cost: capital_cost
             }
                 
