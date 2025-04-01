@@ -64,7 +64,8 @@ class Transformation:
             "Kappa": 1.0,
             "MaxPower": lambda p_nom_opt, p_max_pu: p_nom_opt * p_max_pu,
             "MinPower": lambda p_nom_opt, p_min_pu: p_nom_opt * p_min_pu,
-            "InertiaPower": 1.0
+            "InertiaPower": 1.0,
+            "ActivePowerCost": lambda marginal_cost: marginal_cost,
         }
         
         # Parameters for thermal units
@@ -103,7 +104,7 @@ class Transformation:
             "MaxSecondaryPower": 0.0,
             "InitialPower": lambda p: p[0][0],
             "InitialStorage": lambda state_of_charge, cyclic_state_of_charge: -1 if cyclic_state_of_charge.values else state_of_charge[0][0],
-            # "Cost": lambda marginal_cost: marginal_cost
+            "Cost": lambda marginal_cost: marginal_cost
             }
         
         self.BatteryUnitBlock_store_parameters = {
@@ -121,7 +122,7 @@ class Transformation:
             "MaxSecondaryPower": 0.0,
             "InitialPower": lambda e_initial, max_hours: e_initial / max_hours,
             "InitialStorage": lambda e_initial, e_cyclic: -1 if e_cyclic.values else e_initial,
-            #"Cost": lambda capital_cost: capital_cost
+            "Cost": lambda marginal_cost: marginal_cost
             }
                 
         self.Lines_parameters = {
@@ -161,7 +162,7 @@ class Transformation:
             "UphillFlow": lambda p_nom: np.full(len(p_nom)*3, 0.),
             #"InertiaPower": 1.0,
             # "InitialFlowRate": lambda inflow: inflow.values[0],
-            "InitialVolumetric": lambda state_of_charge_initial, max_hours, p_nom_opt: state_of_charge_initial * max_hours * p_nom_opt
+            "InitialVolumetric": lambda state_of_charge_initial: state_of_charge_initial
             }
         
         # If the PyPSA DataFrame does not contain a value, it is taken from this dict

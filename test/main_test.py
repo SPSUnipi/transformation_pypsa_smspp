@@ -37,10 +37,10 @@ network = clean_marginal_cost(network)
 network = clean_global_constraints(network)
 network = clean_e_sum(network)
 network = clean_efficiency_link(network)
-# network = clean_ciclicity_storage(network)
+network = clean_ciclicity_storage(network)
 network = clean_marginal_cost_intermittent(network)
-network = clean_storage_units(network)
-network = clean_stores(network)
+# network = clean_storage_units(network)
+# network = clean_stores(network)
 
 
 network.optimize(solver_name='gurobi')

@@ -68,7 +68,7 @@ def parse_txt_file(file_path):
             if match_time:
                elapsed_time = float(match_time.group(1))
                data['elapsed_time'] = elapsed_time
-               break  
+               continue 
             
             block_match = re.search(r"(ThermalUnitBlock|BatteryUnitBlock|IntermittentUnitBlock|DCNetworkBlock)", line)
             if block_match:
