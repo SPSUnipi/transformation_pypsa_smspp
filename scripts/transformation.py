@@ -11,6 +11,7 @@ import numpy as np
 from pypsa.descriptors import get_switchable_as_dense as get_as_dense
 import re
 import numpy as np
+import xarray as xr
 
 NP_DOUBLE = np.float64
 NP_UINT = np.uint32
@@ -166,22 +167,6 @@ class Transformation:
             "InitialVolumetric": lambda state_of_charge_initial: state_of_charge_initial
             }
         
-        # If the PyPSA DataFrame does not contain a value, it is taken from this dict
-        # It collects defaults from https://pypsa.readthedocs.io/en/latest/user-guide/components.html
-        # self.default_values = {
-        #     "up_time_before": 1.0,
-        #     "min_up_time": 0.0,
-        #     "min_down_time": 0.0,
-        #     "ramp_limit_up": np.nan,
-        #     "ramp_limit_down": np.nan,
-        #     "marginal_cost_quadratic": 0.0,
-        #     "marginal_cost": 0.0,
-        #     "start_up_cost": 0.0,
-        #     "efficiency_dispatch": 1.0,
-        #     "efficiency_store": 1.0,
-        #     "capital_cost": 0.0,
-        #     "p_nom_opt": 0,
-        #     }
         
         self.conversion_dict = {
             "T": "TimeHorizon",
@@ -364,11 +349,11 @@ class Transformation:
         if attr_name in ['Lines_parameters', 'Links_parameters']:
             self.networkblock[name] = {"block": 'Lines', "variables": converted_dict}
         else:
-            self.unitblocks[components_df.index[0]] = {"enumerate": f"UnitBlock_{index}" ,"block": attr_name.split("_")[0], "variables": converted_dict}   
+            self.unitblocks[f"{attr_name.split('_')[0]}_{index}"] = {"name": components_df.index[0],"enumerate": f"UnitBlock_{index}" ,"block": attr_name.split("_")[0], "variables": converted_dict}   
         
         if attr_name == 'HydroUnitBlock_parameters':
             dimensions = self.hydro_dimensions()
-            self.unitblocks[components_df.index[0]]['dimensions'] = dimensions
+            self.unitblocks[f"{attr_name.split('_')[0]}_{index}"]['dimensions'] = dimensions
             
     
     def hydro_dimensions(self):
@@ -604,10 +589,9 @@ class Transformation:
                     current_block = block_type
                     current_block_key = f"{block_type}_{number}"
     
-                    self.unitblocks[current_block_key] = {
-                        "block": block_type,
-                        "enumerate": number
-                    }
+                    self.unitblocks[current_block_key]["block"] = block_type
+                    self.unitblocks[current_block_key]["enumerate"] = number
+                    
                     continue
     
                 # Match variabili: con o senza indice [0], [1], ...
@@ -632,6 +616,74 @@ class Transformation:
                         # Caso semplice: array diretto
                         self.unitblocks[current_block_key][key_base] = values_array
     
-
+    
+    
+    def inverse_transformation(self, n):
+        all_dataarrays = {}
+    
+        for name, unit_block in self.unitblocks.items():
+            component = Transformation.component_definition(n, unit_block)
+            # Aggiungi eventualmente il nome del blocco (se ti serve)
+            unit_block["name"] = name
+            dataarrays = self.block_to_dataarrays(name, unit_block, component)
+            all_dataarrays.update(dataarrays)  # puoi anche fare merge in un Dataset
+    
+        return all_dataarrays  # oppure: return xr.Dataset(all_dataarrays)
+            
+    @staticmethod 
+    def component_definition(n, unit_block):
+        block = unit_block['block']
+        match block:
+            case "IntermittentUnitBlock":
+                component = "Generator"
+            case "ThermalUnitBlock":
+                component = "Generator"
+            case "HydroUnitBlock":
+                component = "StorageUnit"
+            case "BatteryUnitBlock":
+                if unit_block['name'] in n.storage_units.index:
+                    component = "StorageUnit"
+                else:
+                    component = "Store"
+        return component
+            
+    
+    
+    def block_to_dataarrays(self,unit_name, unit_block, component):
+        dataarrays = {}
+    
+        for key, value in unit_block.items():
+            if key in ['block', 'enumerate', 'name', 'variables']:
+                continue  # Salta i metadati
+    
+            # Se è un dizionario (es: Hydro con [0], [1], [2])
+            if isinstance(value, dict):
+                branch_indices = sorted(value.keys())
+                stacked = np.stack([value[i] for i in branch_indices], axis=0)
+    
+                da = xr.DataArray(
+                    stacked,
+                    dims=['branch', 'time'],
+                    coords={
+                        'branch': branch_indices,
+                        'unit': unit_name,
+                        'component': component
+                    },
+                    name=f"{unit_name}_{key.replace(' ', '_')}"
+                )
+            else:
+                da = xr.DataArray(
+                    value,
+                    dims=['time'],
+                    coords={
+                        'unit': unit_name,
+                        'component': component
+                    },
+                    name=f"{unit_name}_{key.replace(' ', '_')}"
+                )
+            
+            dataarrays[da.name] = da
+    
+        return dataarrays
 
         
