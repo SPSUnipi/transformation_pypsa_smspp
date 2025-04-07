@@ -21,6 +21,18 @@ from datetime import datetime
 from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
 from network_correction import parse_txt_file
 
+from network_correction import (
+    clean_marginal_cost,
+    clean_global_constraints,
+    clean_e_sum,
+    clean_efficiency_link,
+    clean_ciclicity_storage,
+    clean_marginal_cost_intermittent,
+    clean_storage_units,
+    clean_stores,
+    parse_txt_file
+    )
+
 #%% Network definition with PyPSA
 config = Config()
 nd = NetworkDefinition(config)
@@ -28,7 +40,7 @@ nd = NetworkDefinition(config)
 network = nd.n.copy()
 network.optimize(solver_name='gurobi')
 
-
+# network.model.to_file(fn = "f.lp")
 #%% Transformation class
 then = datetime.now()
 transformation = Transformation(network)
@@ -128,5 +140,5 @@ error = (operational_cost - result.objective_value) / operational_cost * 100
 print(f"Error PyPSA-SMS++ of {error}%")
 
 
-
+transformation.parse_txt_to_unitblocks(output_file)
 

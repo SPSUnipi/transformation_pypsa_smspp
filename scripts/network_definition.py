@@ -81,6 +81,7 @@ class NetworkDefinition:
         self.n.snapshots = range(0, self.parser.n_snapshots)
         self.n.snapshot_weightings.objective = self.parser.weight
         self.n.snapshot_weightings.generators = self.parser.weight
+        # self.n.snapshot_weightings.stores = self.parser.weight
     
     def read_excel_components(self):
         """

@@ -10,6 +10,7 @@ import pypsa
 import numpy as np
 from pypsa.descriptors import get_switchable_as_dense as get_as_dense
 import re
+import numpy as np
 
 NP_DOUBLE = np.float64
 NP_UINT = np.uint32
@@ -122,7 +123,7 @@ class Transformation:
             "MaxSecondaryPower": 0.0,
             "InitialPower": lambda e_initial, max_hours: e_initial / max_hours,
             "InitialStorage": lambda e_initial, e_cyclic: -1 if e_cyclic.values else e_initial,
-            "Cost": lambda marginal_cost: marginal_cost
+            "Cost": lambda marginal_cost: marginal_cost / 2
             }
                 
         self.Lines_parameters = {
@@ -579,5 +580,58 @@ class Transformation:
             
             
             
+###########################################################################################################################
+############ INVERSE TRANSFORMATION INTO XARRAY DATASET ###################################################################
+###########################################################################################################################
+
+
+    def parse_txt_to_unitblocks(self, file_path):
+        current_block = None
+        current_block_key = None
+    
+        with open(file_path, "r") as file:
+            for line in file:
+                match_time = re.search(r"Elapsed time:\s*([\deE\+\.-]+)\s*s", line)
+                if match_time:
+                    # puoi salvare elapsed_time separatamente se serve
+                    continue
+    
+                # Match blocchi, es. BatteryUnitBlock 2
+                block_match = re.search(r"(ThermalUnitBlock|BatteryUnitBlock|IntermittentUnitBlock|HydroUnitBlock)\s*(\d+)", line)
+                if block_match:
+                    block_type, number = block_match.groups()
+                    number = int(number)
+                    current_block = block_type
+                    current_block_key = f"{block_type}_{number}"
+    
+                    self.unitblocks[current_block_key] = {
+                        "block": block_type,
+                        "enumerate": number
+                    }
+                    continue
+    
+                # Match variabili: con o senza indice [0], [1], ...
+                match = re.match(r"([\w\s]+?)(?:\s*\[(\d+)\])?\s+=\s+\[([^\]]*)\]", line)
+                if match and current_block_key:
+                    key_base, sub_index, values = match.groups()
+                    key_base = key_base.strip()
+                    values_array = np.array([float(x) for x in values.split()])
+    
+                    if sub_index is not None:
+                        sub_index = int(sub_index)
+                        # Se esiste già ed è un array, converti in dict
+                        if key_base in self.unitblocks[current_block_key] and not isinstance(self.unitblocks[current_block_key][key_base], dict):
+                            prev_value = self.unitblocks[current_block_key][key_base]
+                            self.unitblocks[current_block_key][key_base] = {0: prev_value}
+    
+                        if key_base not in self.unitblocks[current_block_key]:
+                            self.unitblocks[current_block_key][key_base] = {}
+    
+                        self.unitblocks[current_block_key][key_base][sub_index] = values_array
+                    else:
+                        # Caso semplice: array diretto
+                        self.unitblocks[current_block_key][key_base] = values_array
+    
+
 
         

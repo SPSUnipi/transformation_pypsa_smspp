@@ -26,25 +26,32 @@ from network_correction import (
     clean_marginal_cost_intermittent,
     clean_storage_units,
     clean_stores,
+    clean_p_min_pu,
+    one_bus_network,
     parse_txt_file
     )
 
 #%% Network definition with PyPSA
-network_name = "base_s_5_elec_lvopt_1h"
+network_name = "microgrid_microgrid_ALL_1N"
 network = pypsa.Network(f"networks/{network_name}.nc")
 
 network = clean_marginal_cost(network)
 network = clean_global_constraints(network)
 network = clean_e_sum(network)
-network = clean_efficiency_link(network)
 network = clean_ciclicity_storage(network)
-network = clean_marginal_cost_intermittent(network)
+
+# network = one_bus_network(network)
+# network = clean_efficiency_link(network)
+
+
+# network = clean_p_min_pu(network)
+# network = clean_marginal_cost_intermittent(network)
 # network = clean_storage_units(network)
 # network = clean_stores(network)
 
 
 network.optimize(solver_name='gurobi')
-network.export_to_netcdf()
+# network.export_to_netcdf()
 
 
 #%% Transformation class
