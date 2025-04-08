@@ -1,0 +1,4 @@
+include data/*
+include pypsa2smspp/data/*
+include configs/*
+include README.md LICENSE

@@ -13,11 +13,11 @@ sys.path.append(os.path.abspath("../scripts"))
 # Aggiunge il percorso relativo per la cartella `scripts`
 sys.path.append(os.path.abspath("."))
 
-from transformation import Transformation
+from pypsa2smspp import Transformation
 from datetime import datetime
 from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
 import pypsa
-from network_correction import (
+from pypsa2smspp import (
     clean_marginal_cost,
     clean_global_constraints,
     clean_e_sum,
@@ -33,7 +33,7 @@ from network_correction import (
 
 #%% Network definition with PyPSA
 network_name = "microgrid_microgrid_ALL_1N"
-network = pypsa.Network(f"networks/{network_name}.nc")
+network = pypsa.Network(f"test/networks/{network_name}.nc")
 
 network = clean_marginal_cost(network)
 network = clean_global_constraints(network)
@@ -50,7 +50,7 @@ network = clean_ciclicity_storage(network)
 # network = clean_stores(network)
 
 
-network.optimize(solver_name='gurobi')
+network.optimize(solver_name='highs')
 # network.export_to_netcdf()
 
 
@@ -140,6 +140,9 @@ configfile = SMSConfig(
 )  # path to the template solver config file "uc_solverconfig"
 temporary_smspp_file = f"./output_files/{network_name}.nc"  # path to temporary SMS++ file
 output_file = f"./output_files/{network_name}.txt"  # path to the output file (optional)
+
+import os
+os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
 
 result = sn.optimize(
     configfile,
