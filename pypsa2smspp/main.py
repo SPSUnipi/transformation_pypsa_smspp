@@ -139,6 +139,9 @@ operational_cost = statistics['Operational Expenditure'].sum()
 error = (operational_cost - result.objective_value) / operational_cost * 100
 print(f"Error PyPSA-SMS++ of {error}%")
 
+import os
+os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
+
 
 transformation.parse_txt_to_unitblocks(output_file)
 transformation.inverse_transformation(network)

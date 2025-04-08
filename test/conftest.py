@@ -13,7 +13,7 @@ sys.path.append(os.path.abspath("../scripts"))
 # Aggiunge il percorso relativo per la cartella `scripts`
 sys.path.append(os.path.abspath("."))
 
-from transformation import Transformation
+from pypsa2smspp import Transformation
 from datetime import datetime
 from pysmspp import Variable, Block
 import pypsa
