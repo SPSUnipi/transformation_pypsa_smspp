@@ -12,6 +12,8 @@ from pypsa.descriptors import get_switchable_as_dense as get_as_dense
 import re
 import numpy as np
 import xarray as xr
+from scripts.transformation_config import TransformationConfig
+from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
 
 NP_DOUBLE = np.float64
 NP_UINT = np.uint32
@@ -38,7 +40,7 @@ class Transformation:
         Parameters for a ThermalUnitBlock
     """
 
-    def __init__(self, n, max_hours_stores=1):
+    def __init__(self, n, config=TransformationConfig()):
         """
         Initializes the Transformation class.
 
@@ -60,112 +62,7 @@ class Transformation:
         self.unitblocks = dict()
         self.networkblock = dict()
         
-        # Parameters for intermittent units
-        self.IntermittentUnitBlock_parameters = {
-            "Gamma": 0.0,
-            "Kappa": 1.0,
-            "MaxPower": lambda p_nom_opt, p_max_pu: p_nom_opt * p_max_pu,
-            "MinPower": lambda p_nom_opt, p_min_pu: p_nom_opt * p_min_pu,
-            "InertiaPower": 1.0,
-            "ActivePowerCost": lambda marginal_cost: marginal_cost,
-        }
-        
-        # Parameters for thermal units
-        self.ThermalUnitBlock_parameters = {
-            "InitUpDownTime": lambda up_time_before: up_time_before,
-            "MinUpTime": lambda min_up_time: min_up_time,
-            "MinDownTime": lambda min_down_time: min_down_time, 
-            #"DeltaRampUp": lambda ramp_limit_up: ramp_limit_up if not np.isnan(ramp_limit_up) else 0,
-            #"DeltaRampDown": lambda ramp_limit_down: ramp_limit_down if not np.isnan(ramp_limit_down) else 0,
-            "MinPower": lambda p_nom_opt, p_min_pu: p_nom_opt * p_min_pu,
-            "MaxPower": lambda p_nom_opt, p_max_pu: p_nom_opt * p_max_pu,
-            "PrimaryRho": 0.0,
-            "SecondaryRho": 0.0,
-            "Availability": 1,
-            "QuadTerm": lambda marginal_cost_quadratic: marginal_cost_quadratic,
-            "LinearTerm": lambda marginal_cost: marginal_cost,
-            "ConstantTerm": 0.0,
-            "StartUpCost": lambda start_up_cost: start_up_cost,
-            "InitialPower": lambda p: p[0][0],
-            "FixedConsumption": 0.0,
-            "InertiaCommitment": 1.0
-        }
-        
-        self.BatteryUnitBlock_parameters = {
-            "Kappa": 1.0,
-            "MaxPower": lambda p_nom_opt, p_max_pu: p_nom_opt * p_max_pu,
-            "MinPower": lambda p_nom_opt, p_min_pu: p_nom_opt * p_min_pu,
-            # "DeltaRampUp": np.nan,
-            # "DeltaRampDown": np.nan,
-            "ExtractingBatteryRho": lambda efficiency_dispatch: 1 / efficiency_dispatch,
-            "StoringBatteryRho": lambda efficiency_store: efficiency_store,
-            "Demand": 0.0,
-            "MinStorage": 0.0,
-            "MaxStorage": lambda p_nom_opt, p_max_pu, max_hours: p_nom_opt * p_max_pu * max_hours,
-            "MaxPrimaryPower": 0.0,
-            "MaxSecondaryPower": 0.0,
-            "InitialPower": lambda p: p[0][0],
-            "InitialStorage": lambda state_of_charge, cyclic_state_of_charge: -1 if cyclic_state_of_charge.values else state_of_charge[0][0],
-            "Cost": lambda marginal_cost: marginal_cost
-            }
-        
-        self.BatteryUnitBlock_store_parameters = {
-            "Kappa": 1.0,
-            "MaxPower": lambda e_nom_opt, e_max_pu, max_hours: e_nom_opt * e_max_pu / max_hours,
-            "MinPower": lambda e_nom_opt, e_max_pu, max_hours: - e_nom_opt * e_max_pu / max_hours,
-            # "DeltaRampUp": np.nan,
-            # "DeltaRampDown": np.nan,
-            "ExtractingBatteryRho": lambda e_max_pu: np.ones_like(e_max_pu),
-            "StoringBatteryRho": lambda e_max_pu: np.ones_like(e_max_pu),
-            "Demand": 0.0,
-            "MinStorage": 0.0,
-            "MaxStorage": lambda e_nom_opt: e_nom_opt,
-            "MaxPrimaryPower": 0.0,
-            "MaxSecondaryPower": 0.0,
-            "InitialPower": lambda e_initial, max_hours: e_initial / max_hours,
-            "InitialStorage": lambda e_initial, e_cyclic: -1 if e_cyclic.values else e_initial,
-            "Cost": lambda marginal_cost: marginal_cost / 2
-            }
-                
-        self.Lines_parameters = {
-            "StartLine": lambda start_line_idx: start_line_idx.values,
-            "EndLine": lambda end_line_idx: end_line_idx.values,
-            "MinPowerFlow": lambda s_nom_opt: -s_nom_opt.values,
-            "MaxPowerFlow": lambda s_nom_opt: s_nom_opt.values,
-            "LineSusceptance": lambda s_nom_opt: np.zeros_like(s_nom_opt)
-            }
-        
-        self.Links_parameters = {
-            "StartLine": lambda start_line_idx: start_line_idx.values,
-            "EndLine": lambda end_line_idx: end_line_idx.values,
-            "MinPowerFlow": lambda p_nom_opt, p_min_pu: p_nom_opt.values * p_min_pu.values,
-            "MaxPowerFlow": lambda p_nom_opt, p_max_pu: p_nom_opt.values * p_max_pu.values,
-            "LineSusceptance": lambda s_nom_opt: np.zeros_like(s_nom_opt)
-            }
-
-        self.HydroUnitBlock_parameters = {
-            "StartArc": lambda p_nom: np.full(len(p_nom)*3, 0),
-            "EndArc": lambda p_nom: np.full(len(p_nom)*3, 1),
-            "MaxVolumetric": lambda p_nom_opt, max_hours: (p_nom_opt * max_hours),
-            "MinVolumetric": 0.0,
-            "Inflows": lambda inflow: inflow.values.transpose(),
-            "MaxFlow": lambda p_nom_opt, p_max_pu, inflow: (np.array([100* (p_nom_opt*p_max_pu), 100*np.full_like(p_max_pu, inflow.max()), (0.*p_max_pu)])).squeeze().transpose(),
-            "MinFlow": lambda inflow: np.array([0., 0., -100*inflow.values.max()]),
-            "MaxPower": lambda p_nom_opt, p_max_pu: (np.array([(p_nom_opt*p_max_pu), (0.*p_max_pu), (0. *p_max_pu)])).squeeze().transpose(),
-            "MinPower": lambda p_nom_opt, p_min_pu: (np.array([(p_nom_opt*p_min_pu), (0.*p_min_pu), (0. *p_min_pu)])).squeeze().transpose(),
-            # "PrimaryRho": lambda p_nom: np.full(len(p_nom)*3, 0.),
-            # "SecondaryRho": lambda p_nom: np.full(len(p_nom)*3, 0.),
-            "NumberPieces": lambda p_nom: np.full(len(p_nom)*3, 1),
-            "ConstantTerm": lambda p_nom: np.full(len(p_nom)*3, 0),
-            "LinearTerm": lambda efficiency_dispatch, efficiency_store: np.array([1/efficiency_dispatch.values.max(), 0., efficiency_store.values.max()]),
-            # "DeltaRampUp": np.nan,
-            # "DeltaRampDown": np.nan,
-            "DownhillFlow": lambda p_nom: np.full(len(p_nom)*3, 0.),
-            "UphillFlow": lambda p_nom: np.full(len(p_nom)*3, 0.),
-            #"InertiaPower": 1.0,
-            # "InitialFlowRate": lambda inflow: inflow.values[0],
-            "InitialVolumetric": lambda state_of_charge_initial: state_of_charge_initial
-            }
+        self.config = config
         
         
         self.conversion_dict = {
@@ -181,7 +78,7 @@ class Transformation:
             "1": 1
             }
         
-        n.stores["max_hours"] = max_hours_stores
+        n.stores["max_hours"] = config.max_hours_stores
         
         # Initialize with the parser and network
         self.init(n)
@@ -310,8 +207,8 @@ class Transformation:
             Dictionary of transformed parameters for the component.
         """
         converted_dict = {}
-        if hasattr(self, attr_name):
-            unitblock_parameters = getattr(self, attr_name)
+        if hasattr(self.config, attr_name):
+            unitblock_parameters = getattr(self.config, attr_name)
         else:
             print("Block not yet implemented") # TODO: Replace with logger
             
@@ -686,4 +583,80 @@ class Transformation:
     
         return dataarrays
 
+    def to_ucblock(self):
+        """
+        Converts the unit blocks into a UCBlock format.
         
+        Returns:
+        ----------
+        ucblock : SMSNetwork
+            SMSNetwork object containing the network in SMS++ UCBlock format.
+        """
+        # pySMSpp
+        sn = SMSNetwork(file_type=SMSFileType.eBlockFile) # Empty Block
+
+        # Dimensions of the problem
+        kwargs = self.dimensions
+
+        # Load
+        demand_name = self.demand['name']
+        demand_type = self.demand['type']
+        demand_size = self.demand['size']
+        demand_value = self.demand['value']
+
+        demand = {demand_name: Variable(  # active power demand
+                demand_name,
+                demand_type,
+                demand_size,
+                demand_value )}
+
+        kwargs = {**kwargs, **demand}
+
+        # Generator node
+        generator_node = {self.generator_node['name']: Variable(
+            self.generator_node['name'],
+            self.generator_node['type'],
+            self.generator_node['size'],
+            self.generator_node['value'])}
+
+        kwargs = {**kwargs, **generator_node}
+
+        # Lines
+        line_variables = {}
+        for name, variable in self.networkblock['Lines']['variables'].items():
+            line_variables[name] = Variable(
+                name,
+                variable['type'],
+                variable['size'],
+                variable['value'])
+            
+        kwargs = {**kwargs, **line_variables}
+
+        # Add UC block
+        sn.add(
+            "UCBlock",  # block type
+            "Block_0",  # block name
+            id="0",  # block id
+            **kwargs
+        )
+
+        # Add unit blocks
+
+        for name, unit_block in self.unitblocks.items():
+            kwargs = {}
+            for variable_name, variable in unit_block['variables'].items():
+                kwargs[variable_name] = Variable(
+                    variable_name,
+                    variable['type'],
+                    variable['size'],
+                    variable['value'])
+            
+            unit_block_toadd = Block().from_kwargs(
+                block_type=unit_block['block'],
+                **kwargs
+            )
+            
+            # Why should I have name UnitBlock_0?
+            sn.blocks["Block_0"].add_block(unit_block['enumerate'], block=unit_block_toadd)
+
+        return sn

@@ -12,6 +12,7 @@ import os
 sys.path.append(os.path.abspath("../configs"))
 # Aggiunge il percorso relativo per la cartella `scripts`
 sys.path.append(os.path.abspath("."))
+sys.path.append(os.path.abspath("configs"))
 
 
 from config import Config
