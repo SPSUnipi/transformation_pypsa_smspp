@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pypsa2smspp"
+version = "0.0.1"
+authors = [
+  { name="Alessandro Pampado", email="alessandro.pampado@ing.unipi.it"},
+  { name="Davide Fioriti", email="davide.fioriti@unipi.it" },
+  { name="Unipi developers", email="davide.fioriti@unipi.it" },
+]
+description = "Bi-directional interface between PyPSA and SMS++"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+]
+
+requires-python = ">=3.9"
+
+dependencies = [
+    "numpy",
+    "pandas>=0.24",
+    "pypsa",
+    "xarray",
+]
+
+[project.urls]
+Homepage = "https://github.com/SPSUnipi/pypsa2smspp"
+Issues = "https://github.com/SPSUnipi/pypsa2smspp/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest", 
+    "highspy",
+    "gurobipy",
+    "coverage",
+    "pre-commit",
+    "ncompare",
+    "mypy",
+]
+docs=[
+    "numpydoc",
+    "sphinx",
+    "sphinx-book-theme",
+    "sphinx-rtd-theme",
+    "pydata-sphinx-theme",
+    "sphinx-reredirects",
+    "nbsphinx",
+    "nbsphinx-link",
+    "scikit-learn",
+    "ipython",
+    "ipykernel",
+]
+
+[tool.setuptools]
+packages = ["pypsa2smspp"]
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
+
+[tool.setuptools.package-data]
+"pysmspp" = ["py.typed"]
+
+# Pytest settings
+
+[tool.pytest.ini_options]   
+filterwarnings = [
+    "error::DeprecationWarning", # Raise all DeprecationWarnings as errors
+    "error::FutureWarning",      # Raise all FutureWarnings as errors
+]
+
+# Coverage settings
+
+[tool.coverage.run]
+branch = true
+source = ["pypsa2smspp"]
+omit = ["test/*"]
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+]
+
+# Static type checker settings
+[tool.mypy]
+exclude = ['dev/*', 'examples/*', 'doc/*']
+ignore_missing_imports = true
+no_implicit_optional = true
+warn_unused_ignores = true
+show_error_code_links = true
+
+[[tool.mypy.overrides]]
+module = "pypsa2smspp.*"
+disallow_untyped_defs = true
+check_untyped_defs = true
+
+# [tool.setuptools.dynamic]
+# version = {attr = "pysmspp.__version__"}
