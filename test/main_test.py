@@ -32,7 +32,7 @@ from network_correction import (
     )
 
 #%% Network definition with PyPSA
-network_name = "microgrid_microgrid_ALL_1N"
+network_name = "microgrid_microgrid_ALL_4N"
 network = pypsa.Network(f"networks/{network_name}.nc")
 
 network = clean_marginal_cost(network)
@@ -157,3 +157,7 @@ statistics = network.statistics()
 operational_cost = statistics['Operational Expenditure'].sum()
 error = (operational_cost - result.objective_value) / operational_cost * 100
 print(f"Error PyPSA-SMS++ of {error}%")
+
+unitblocks = transformation.unitblocks
+transformation.parse_txt_to_unitblocks(output_file)
+transformation.inverse_transformation(network)

@@ -157,7 +157,7 @@ class Transformation:
             # "SecondaryRho": lambda p_nom: np.full(len(p_nom)*3, 0.),
             "NumberPieces": lambda p_nom: np.full(len(p_nom)*3, 1),
             "ConstantTerm": lambda p_nom: np.full(len(p_nom)*3, 0),
-            "LinearTerm": lambda efficiency_dispatch, efficiency_store: np.array([1/efficiency_dispatch.values.max(), 0., efficiency_store.values.max()]),
+            "LinearTerm": lambda efficiency_dispatch, efficiency_store: np.array([efficiency_dispatch.values.max(), 0., 1/efficiency_store.values.max()]),
             # "DeltaRampUp": np.nan,
             # "DeltaRampDown": np.nan,
             "DownhillFlow": lambda p_nom: np.full(len(p_nom)*3, 0.),
@@ -619,19 +619,237 @@ class Transformation:
     
     
     def inverse_transformation(self, n):
-        all_dataarrays = {}
+        '''
+        Performs the inverse transformation from the SMS++ blocks to xarray object.
+        The xarray wll be converted in a solution type Linopy file to get n.optimize()
+    
+        This method initializes the inverse process and sets inverse-conversion dicts
+    
+        Parameters
+        ----------
+        n : pypsa.Network
+            A PyPSA network instance from which the data will be extracted.
+        '''
+
+        self.IntermittentUnitBlock_inverse = {
+            "p_nom": lambda p_nom_opt: p_nom_opt,
+            "p": lambda active_power: active_power
+            }
+        
+        self.ThermalUnitBlock_inverse = {
+            "p_nom": lambda p_nom_opt: p_nom_opt,
+            "p": lambda active_power: active_power
+            }
+        
+        self.HydroUnitBlock_inverse = {
+            "p_nom": lambda p_nom_opt: p_nom_opt,
+            "p": lambda active_power: active_power
+            }
+        
+        self.BatteryUnitBlock_inverse = {
+            "p_nom": lambda p_nom_opt: p_nom_opt,
+            "state_of_charge": lambda storage_level: storage_level
+            }
+        
+        self.component_mapping = {
+            "Generator": "generators",
+            "StorageUnit": "storage_units",
+            "Store": "stores",
+            "Load": "loads",
+            "Link": "links",
+            "Bus": "buses"
+        }
+
+        all_dataarrays = self.iterate_blocks(n)
+        self.ds = xr.Dataset(all_dataarrays)
+        
+        
+        
+    def iterate_blocks(self, n):
+        '''
+        Iterates over all unit blocks in the model and constructs their corresponding xarray.Dataset objects.
+        
+        For each unit block, this method determines the component type, generates DataArrays using
+        `block_to_dataarrays`, and appends them to a list of datasets. At the end, all datasets are
+        merged into a single xarray.Dataset.
+        
+        Parameters
+        ----------
+        n : pypsa.Network
+            The PyPSA network from which values are extracted.
+        
+        Returns
+        -------
+        xr.Dataset
+            A dataset containing all DataArrays from the unit blocks.
+        '''
+        datasets = []
     
         for name, unit_block in self.unitblocks.items():
             component = Transformation.component_definition(n, unit_block)
-            # Aggiungi eventualmente il nome del blocco (se ti serve)
-            unit_block["name"] = name
-            dataarrays = self.block_to_dataarrays(name, unit_block, component)
-            all_dataarrays.update(dataarrays)  # puoi anche fare merge in un Dataset
+            dataarrays = self.block_to_dataarrays(n, name, unit_block, component)
+            if dataarrays:  # No emptry dicts
+                ds = xr.Dataset(dataarrays)
+                datasets.append(ds)
     
-        return all_dataarrays  # oppure: return xr.Dataset(all_dataarrays)
+        # Merge in a single dataset
+        return xr.merge(datasets)
+
+          
+    
+    def block_to_dataarrays(self, n, unit_name, unit_block, component):
+        '''
+        Constructs a dictionary of DataArrays for a single unit block.
+        
+        It retrieves the inverse function mappings for the specific block type and evaluates
+        each function based on the available parameters. The resulting values are formatted
+        into xarray.DataArray objects using `dataarray_components`.
+        
+        Parameters
+        ----------
+        n : pypsa.Network
+            The PyPSA network object.
+        unit_name : str
+            The name of the unit block.
+        unit_block : dict
+            The dictionary defining the unit block structure and parameters.
+            Obtained in the first steps of the transformation class
+        component : str
+            The corresponding PyPSA component (e.g., 'Generator', 'StorageUnit').
+        
+        Returns
+        -------
+        dict
+            A dictionary of xarray.DataArrays keyed by variable names.
+        '''
+        
+        attr_name = f"{unit_block['block']}_inverse"
+        converted_dict = {}
+        normalized_keys = {Transformation.normalize_key(k): k for k in unit_block.keys()}
+    
+        if hasattr(self, attr_name):
+            unitblock_parameters = getattr(self, attr_name)
+        else:
+            print(f"Block {unit_block['block']} not yet implemented")
+            return {}
+    
+        df = getattr(n, self.component_mapping[component])
+    
+        for key, func in unitblock_parameters.items():
+            if callable(func):
+                value = self.evaluate_function(func, normalized_keys, unit_block, df)
+                value, dims, coords, var_name = self.dataarray_components(n, value, component, unit_block, key)
+
+                converted_dict[var_name] = xr.DataArray(value, dims=dims, coords=coords, name=var_name)
+    
+        return converted_dict
+
+    
+    def evaluate_function(self, func, normalized_keys, unit_block, df):
+        '''
+        Evaluates an inverse function by collecting its arguments from the unit block or network dataframe.
+        
+        Parameters
+        ----------
+        func : Callable
+            The inverse function to evaluate.
+        normalized_keys : dict
+            A mapping of normalized parameter names to their original keys.
+        unit_block : dict
+            The dictionary defining the block parameters.
+        df : pandas.DataFrame
+            The dataframe from the PyPSA network corresponding to the block component.
+        
+        Returns
+        -------
+        value : Any
+            The result of the inverse function evaluation.
+        '''
+        
+        param_names = func.__code__.co_varnames[:func.__code__.co_argcount]
+        args = []
+
+        for param in param_names:
+            param = Transformation.normalize_key(param)
+            if param in normalized_keys:
+                arg = unit_block[normalized_keys[param]]
+            else:
+                arg = df.loc[unit_block['name']][param]
+            args.append(arg)
+
+        value = func(*args)
+        return value
             
+            
+    def dataarray_components(self, n, value, component, unit_block, key):
+        '''
+        Determines the dimensions and coordinates of a DataArray based on the shape of the value.
+        
+        This function supports scalar values and 1D time series aligned with the network snapshots.
+        It returns the value (reshaped if necessary), the corresponding dimension names,
+        coordinate mappings, and a standardized variable name.
+        
+        Parameters
+        ----------
+        n : pypsa.Network
+            The PyPSA network instance.
+        value : array-like or scalar
+            The evaluated parameter value.
+        component : str
+            The name of the PyPSA component (e.g., 'Generator').
+        unit_block : dict
+            The dictionary defining the block.
+        key : str
+            The name of the parameter being processed.
+        
+        Returns
+        -------
+        tuple
+            A tuple (value, dims, coords, var_name) used to create an xarray.DataArray.
+        '''
+        if isinstance(value, np.ndarray):
+            if value.ndim == 1 and len(value) == len(n.snapshots):
+                dims = ["snapshot", component]
+                coords = {
+                    "snapshot": n.snapshots,
+                    component: [unit_block["name"]]
+                }
+                value = value[:, np.newaxis]
+            elif value.ndim == 1:
+                dims = [f"{component}-ext"]
+                coords = {f"{component}-ext": [unit_block["name"]]}
+            else:
+                raise ValueError(f"Unsupported shape for variable {key}: {value.shape}")
+        else:
+            value = np.array([value])
+            dims = [f"{component}-ext"]
+            coords = {f"{component}-ext": [unit_block["name"]]}
+
+        var_name = f"{component}-{key}"
+        return value, dims, coords, var_name
+            
+
     @staticmethod 
     def component_definition(n, unit_block):
+        '''
+        Maps a unit block type to the corresponding PyPSA component.
+        
+        In some cases, such as the BatteryUnitBlock, this function dynamically chooses between
+        StorageUnit and Store depending on the presence of the unit name in the network.
+        
+        Parameters
+        ----------
+        n : pypsa.Network
+            The PyPSA network.
+        unit_block : dict
+            The dictionary defining the unit block.
+        
+        Returns
+        -------
+        str
+            The name of the PyPSA component (e.g., 'Generator').
+        '''
+        
         block = unit_block['block']
         match block:
             case "IntermittentUnitBlock":
@@ -646,44 +864,22 @@ class Transformation:
                 else:
                     component = "Store"
         return component
-            
-    
-    
-    def block_to_dataarrays(self,unit_name, unit_block, component):
-        dataarrays = {}
-    
-        for key, value in unit_block.items():
-            if key in ['block', 'enumerate', 'name', 'variables']:
-                continue  # Salta i metadati
-    
-            # Se è un dizionario (es: Hydro con [0], [1], [2])
-            if isinstance(value, dict):
-                branch_indices = sorted(value.keys())
-                stacked = np.stack([value[i] for i in branch_indices], axis=0)
-    
-                da = xr.DataArray(
-                    stacked,
-                    dims=['branch', 'time'],
-                    coords={
-                        'branch': branch_indices,
-                        'unit': unit_name,
-                        'component': component
-                    },
-                    name=f"{unit_name}_{key.replace(' ', '_')}"
-                )
-            else:
-                da = xr.DataArray(
-                    value,
-                    dims=['time'],
-                    coords={
-                        'unit': unit_name,
-                        'component': component
-                    },
-                    name=f"{unit_name}_{key.replace(' ', '_')}"
-                )
-            
-            dataarrays[da.name] = da
-    
-        return dataarrays
+
+    @staticmethod
+    def normalize_key(key):
+        '''
+        Normalizes a parameter key by converting it to lowercase and replacing spaces with underscores.
+        
+        Parameters
+        ----------
+        key : str
+            The parameter key to normalize.
+        
+        Returns
+        -------
+        str
+            The normalized key.
+        '''
+        return key.lower().replace(" ", "_")
 
         

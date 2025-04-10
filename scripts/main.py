@@ -141,5 +141,5 @@ print(f"Error PyPSA-SMS++ of {error}%")
 
 
 transformation.parse_txt_to_unitblocks(output_file)
-transformation.inverse_transformation(network)
+# transformation.inverse_transformation(network)
 
