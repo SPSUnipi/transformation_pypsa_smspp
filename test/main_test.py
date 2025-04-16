@@ -13,11 +13,11 @@ sys.path.append(os.path.abspath("../scripts"))
 # Aggiunge il percorso relativo per la cartella `scripts`
 sys.path.append(os.path.abspath("."))
 
-from transformation import Transformation
+from pypsa2smspp.transformation import Transformation
 from datetime import datetime
 from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
 import pypsa
-from network_correction import (
+from pypsa2smspp.network_correction import (
     clean_marginal_cost,
     clean_global_constraints,
     clean_e_sum,
