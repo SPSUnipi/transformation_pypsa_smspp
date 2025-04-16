@@ -8,22 +8,20 @@ Created on Tue Mar 11 08:23:19 2025
 import sys
 import os
 
-# Aggiunge il percorso relativo per la cartella `config`
-sys.path.append(os.path.abspath("../scripts"))
-# Aggiunge il percorso relativo per la cartella `scripts`
-sys.path.append(os.path.abspath("."))
-
 from pypsa2smspp.transformation import Transformation
 from datetime import datetime
 from pysmspp import Variable, Block
 import pypsa
 
+DIR = os.path.dirname(os.path.abspath(__file__))
+
 def get_network(network_name):
     ''' Upload the PyPSA network '''
-    network = pypsa.Network(f"networks/{network_name}.nc")
+    fp = os.path.join(DIR, "networks", f"{network_name}.nc")
+    network = pypsa.Network(fp)
     return network 
 
-def optimize_network(network, solver_name='gurobi'):
+def optimize_network(network, solver_name='highs'):
     ''' Optimize the PyPSA network '''
     network.optimize(solver_name=solver_name)
     

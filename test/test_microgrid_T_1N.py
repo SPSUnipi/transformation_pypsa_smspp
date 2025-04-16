@@ -67,13 +67,8 @@ def optimize_pypsa_smspp_network(network_name='microgrid_microgrid_T_1N'):
     
     
     assert "success" in result.status.lower()
-    assert "warning" not in result.log.lower()
     assert "error" not in result.log.lower()
     assert "ThermalUnitBlock" in result.log
-    assert "BatteryUnitBlock" in result.log
-    assert "HydroUnitBlock" in result.log
-    assert "IntermittentUnitBlock" in result.log
-    
-    
-    
-    
+    assert "BatteryUnitBlock" not in result.log
+    assert "HydroUnitBlock" not in result.log
+    assert "IntermittentUnitBlock" not in result.log

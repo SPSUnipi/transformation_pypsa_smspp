@@ -29,11 +29,14 @@ from pypsa2smspp.network_correction import (
     clean_p_min_pu,
     one_bus_network,
     parse_txt_file
-    )
+)
+
+DIR = os.path.dirname(os.path.abspath(__file__))
 
 #%% Network definition with PyPSA
 network_name = "microgrid_microgrid_ALL_4N"
-network = pypsa.Network(f"networks/{network_name}.nc")
+fp = os.path.join(DIR, "networks", f"{network_name}.nc")
+network = pypsa.Network(fp)
 
 network = clean_marginal_cost(network)
 network = clean_global_constraints(network)
@@ -50,7 +53,7 @@ network = clean_ciclicity_storage(network)
 # network = clean_stores(network)
 
 
-network.optimize(solver_name='gurobi')
+network.optimize(solver_name='highs')
 # network.export_to_netcdf()
 
 
