@@ -9,12 +9,12 @@ import sys
 import os
 
 # Aggiunge il percorso relativo per la cartella `config`
-sys.path.append(os.path.abspath("../configs"))
+sys.path.append(os.path.abspath("../scripts"))
 # Aggiunge il percorso relativo per la cartella `scripts`
 sys.path.append(os.path.abspath("."))
 
 
-from config import Config
+from configs.config import Config
 from network_definition import NetworkDefinition
 from transformation import Transformation
 from datetime import datetime

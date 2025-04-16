@@ -11,7 +11,7 @@ from configparser import ConfigParser
 class Config():
     def __init__(self):
         self.parser = ConfigParser()
-        self.parser.read("C:\\Users\\aless\\sms\\transformation_pypsa_smspp\\configs\\application.ini")
+        self.parser.read("C:\\Users\\aless\\sms\\transformation_pypsa_smspp\\test\\configs\\application.ini")
         
         self.init()
         
