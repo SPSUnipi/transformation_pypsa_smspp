@@ -1,0 +1,2 @@
+include pypsa2smspp/data/*
+include README.md LICENSE
