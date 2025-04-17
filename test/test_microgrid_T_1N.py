@@ -17,13 +17,15 @@ from conftest import (
     add_ucblock,
     add_unitblock_toucblock,
     comparison_pypsa_smspp
-    )
+)
+import os
 
 import pypsa
 import pytest
 
+DIR = os.path.dirname(os.path.abspath(__file__))
 
-def optimize_pypsa_smspp_network(network_name='microgrid_microgrid_T_1N'):
+def test_optimize_pypsa_smspp_network(network_name='microgrid_microgrid_T_1N'):
     
     network = get_network(network_name)
     optimize_network(network)
@@ -54,8 +56,10 @@ def optimize_pypsa_smspp_network(network_name='microgrid_microgrid_T_1N'):
     configfile = SMSConfig(
         template="uc_solverconfig"
     )  # path to the template solver config file "uc_solverconfig"
-    temporary_smspp_file = f"./output_files/{network_name}.nc"  # path to temporary SMS++ file
-    output_file = f"./output_files/{network_name}.txt"  # path to the output file (optional)
+    temporary_smspp_file = os.path.join(DIR, "output", f"{network_name}.nc")  # path to temporary SMS++ file
+    output_file = os.path.join(DIR, "output", f"{network_name}.txt")  # path to the output file (optional)
+    
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
  
     result = sn.optimize(
         configfile,
