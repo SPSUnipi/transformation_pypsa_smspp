@@ -1,4 +1,7 @@
-from pypsa2smspp.transformation import Transformation as Transformation
+
+from pypsa2smspp.transformation import (
+    Transformation as Transformation,
+)
 from pypsa2smspp.network_correction import (
     clean_marginal_cost as clean_marginal_cost,
     clean_global_constraints as clean_global_constraints,

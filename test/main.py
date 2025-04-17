@@ -16,7 +16,7 @@ sys.path.append(os.path.abspath("."))
 DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-from configs.config import TestConfig
+from configs.test_config import TestConfig
 from network_definition import NetworkDefinition
 from pypsa2smspp.transformation import Transformation
 from datetime import datetime

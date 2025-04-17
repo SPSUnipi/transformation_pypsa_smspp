@@ -8,7 +8,7 @@ Created on Tue Mar 11 08:23:19 2025
 import sys
 import os
 
-from pypsa2smspp.transformation import Transformation
+from pypsa2smspp import Transformation
 from datetime import datetime
 from pysmspp import Variable, Block
 import pypsa
@@ -107,3 +107,4 @@ def comparison_pypsa_smspp(network, result):
     operational_cost = statistics['Operational Expenditure'].sum()
     error = (operational_cost - result.objective_value) / operational_cost * 100
     print(f"Error PyPSA-SMS++ of {error}%")
+    return error

@@ -67,9 +67,9 @@ def test_optimize_pypsa_smspp_network(network_name='microgrid_microgrid_T_1N'):
         output_file,
     )
         
-    comparison_pypsa_smspp(network, result)
+    val = comparison_pypsa_smspp(network, result)
     
-    
+    assert pytest.approx(val, abs=1e-5) == 0.
     assert "success" in result.status.lower()
     assert "error" not in result.log.lower()
     assert "ThermalUnitBlock" in result.log
