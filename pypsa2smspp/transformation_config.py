@@ -131,6 +131,35 @@ class TransformationConfig:
             "InitialVolumetric": lambda state_of_charge_initial: state_of_charge_initial
         }
 
+        self.IntermittentUnitBlock_inverse = {
+            "p_nom": lambda p_nom_opt: p_nom_opt,
+            "p": lambda active_power: active_power
+            }
+        
+        self.ThermalUnitBlock_inverse = {
+            "p_nom": lambda p_nom_opt: p_nom_opt,
+            "p": lambda active_power: active_power
+            }
+        
+        self.HydroUnitBlock_inverse = {
+            "p_nom": lambda p_nom_opt: p_nom_opt,
+            "p": lambda active_power: active_power
+            }
+        
+        self.BatteryUnitBlock_inverse = {
+            "p_nom": lambda p_nom_opt: p_nom_opt,
+            "state_of_charge": lambda storage_level: storage_level
+            }
+        
+        self.component_mapping = {
+            "Generator": "generators",
+            "StorageUnit": "storage_units",
+            "Store": "stores",
+            "Load": "loads",
+            "Link": "links",
+            "Bus": "buses"
+        }
+
         self.max_hours_stores = 10
 
     def init(self):
