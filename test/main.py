@@ -13,8 +13,10 @@ sys.path.append(os.path.abspath("../scripts"))
 # Aggiunge il percorso relativo per la cartella `scripts`
 sys.path.append(os.path.abspath("."))
 
+DIR = os.path.dirname(os.path.abspath(__file__))
 
-from configs.config import Config
+
+from configs.test_config import TestConfig
 from network_definition import NetworkDefinition
 from pypsa2smspp.transformation import Transformation
 from datetime import datetime
@@ -33,7 +35,7 @@ from pypsa2smspp.network_correction import (
     )
 
 #%% Network definition with PyPSA
-config = Config()
+config = TestConfig()
 nd = NetworkDefinition(config)
 
 network = nd.n.copy()
@@ -118,8 +120,10 @@ for name, unit_block in transformation.unitblocks.items():
 configfile = SMSConfig(
     template="uc_solverconfig"
 )  # path to the template solver config file "uc_solverconfig"
-temporary_smspp_file = "./2buses_1th_1int.nc"  # path to temporary SMS++ file
-output_file = "./2buses_1th_1int.txt"  # path to the output file (optional)
+temporary_smspp_file = os.path.join(DIR, "output", "2buses_1th_1int.nc")  # path to temporary SMS++ file
+output_file = os.path.join(DIR, "output", "2buses_1th_1int.txt")  # path to the output file (optional)
+
+os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
 result = sn.optimize(
     configfile,
