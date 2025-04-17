@@ -1,4 +1,6 @@
 # pypsa2smspp
+
+[![Tests](https://github.com/SPSUnipi/pypsa2smspp/actions/workflows/test.yml/badge.svg)](https://github.com/SPSUnipi/pypsa2smspp/actions/workflows/test.yml)
  
 This package aims at providing a python interface between [PyPSA](https://github.com/PyPSA/pypsa) and [SMS++](https://gitlab.com/smspp/smspp-project) models using a simple python interface.
 The package aims to support:
@@ -12,7 +14,7 @@ The package aims to support:
 1. First, clone the repository using git:
 
     ```bash
-        git clone https://github.com/SPSUnipi/transformation_pypsa_smspp
+        git clone https://github.com/SPSUnipi/pypsa2smspp
     ```
 
 2. Create a virtual environment using venv or conda.
