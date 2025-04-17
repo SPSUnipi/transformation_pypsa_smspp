@@ -16,12 +16,11 @@ sys.path.append(os.path.abspath("."))
 
 from configs.config import Config
 from network_definition import NetworkDefinition
-from transformation import Transformation
+from pypsa2smspp.transformation import Transformation
 from datetime import datetime
 from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
-from network_correction import parse_txt_file
 
-from network_correction import (
+from pypsa2smspp.network_correction import (
     clean_marginal_cost,
     clean_global_constraints,
     clean_e_sum,
@@ -38,7 +37,7 @@ config = Config()
 nd = NetworkDefinition(config)
 
 network = nd.n.copy()
-network.optimize(solver_name='gurobi')
+network.optimize(solver_name='highs')
 
 # network.model.to_file(fn = "f.lp")
 #%% Transformation class

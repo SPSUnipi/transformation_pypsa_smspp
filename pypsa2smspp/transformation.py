@@ -12,9 +12,13 @@ from pypsa.descriptors import get_switchable_as_dense as get_as_dense
 import re
 import numpy as np
 import xarray as xr
+import os
 
 NP_DOUBLE = np.float64
 NP_UINT = np.uint32
+
+DIR = os.path.dirname(os.path.abspath(__file__))
+FP_PARAMS = os.path.join(DIR, "data", "smspp_parameters.xlsx")
 
 class Transformation:
     """
@@ -479,7 +483,7 @@ class Transformation:
         """
         components_df[column_name] = bus_series.map(n.buses.index.get_loc).astype(dtype).values
 
-    def read_excel_components(self):
+    def read_excel_components(self, fp=FP_PARAMS):
         """
         Reads Excel file for size and type of SMS++ parameters. Each sheet includes a class of components
 
@@ -489,8 +493,7 @@ class Transformation:
             Dictionary where keys are sheet names and values are DataFrames containing 
             data for each UnitBlock type (or lines).
         """
-        file_path = "../data/parameters_smspp.xlsx"
-        self.smspp_parameters = pd.read_excel(file_path, sheet_name=None, index_col=0)
+        self.smspp_parameters = pd.read_excel(fp, sheet_name=None, index_col=0)
         
     
     def add_size_type(self, attr_name, key, args=None):

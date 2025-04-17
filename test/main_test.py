@@ -13,11 +13,11 @@ sys.path.append(os.path.abspath("../scripts"))
 # Aggiunge il percorso relativo per la cartella `scripts`
 sys.path.append(os.path.abspath("."))
 
-from transformation import Transformation
+from pypsa2smspp.transformation import Transformation
 from datetime import datetime
 from pysmspp import SMSNetwork, SMSFileType, Variable, Block, SMSConfig
 import pypsa
-from network_correction import (
+from pypsa2smspp.network_correction import (
     clean_marginal_cost,
     clean_global_constraints,
     clean_e_sum,
@@ -29,11 +29,14 @@ from network_correction import (
     clean_p_min_pu,
     one_bus_network,
     parse_txt_file
-    )
+)
+
+DIR = os.path.dirname(os.path.abspath(__file__))
 
 #%% Network definition with PyPSA
 network_name = "microgrid_microgrid_ALL_4N"
-network = pypsa.Network(f"networks/{network_name}.nc")
+fp = os.path.join(DIR, "networks", f"{network_name}.nc")
+network = pypsa.Network(fp)
 
 network = clean_marginal_cost(network)
 network = clean_global_constraints(network)
@@ -50,7 +53,7 @@ network = clean_ciclicity_storage(network)
 # network = clean_stores(network)
 
 
-network.optimize(solver_name='gurobi')
+network.optimize(solver_name='highs')
 # network.export_to_netcdf()
 
 

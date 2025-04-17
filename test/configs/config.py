@@ -6,12 +6,20 @@ Created on Tue Oct 29 14:10:34 2024
 """
 
 from configparser import ConfigParser
+import os
+
+DIR = os.path.dirname(os.path.abspath(__file__))
+FP_DEFAULT = os.path.join(DIR, "application.ini")
 
 # Class for the initial configuration of the project
 class Config():
-    def __init__(self):
+    def __init__(self, fp=FP_DEFAULT):
         self.parser = ConfigParser()
-        self.parser.read("C:\\Users\\aless\\sms\\transformation_pypsa_smspp\\test\\configs\\application.ini")
+        self.parser.read(fp)
+
+        self.parser["INPUT"]["input_data_path"] = os.path.abspath(
+            os.path.join(DIR, self.parser["INPUT"]["input_data_path"])
+        )
         
         self.init()
         
