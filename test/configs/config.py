@@ -12,7 +12,7 @@ DIR = os.path.dirname(os.path.abspath(__file__))
 FP_DEFAULT = os.path.join(DIR, "application.ini")
 
 # Class for the initial configuration of the project
-class Config():
+class TestConfig():
     def __init__(self, fp=FP_DEFAULT):
         self.parser = ConfigParser()
         self.parser.read(fp)

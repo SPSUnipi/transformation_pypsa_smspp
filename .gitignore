@@ -159,6 +159,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-
-*/microgrid*
+# Testing folders and files
+test/*/microgrid*
 *.lp
+test/output/*

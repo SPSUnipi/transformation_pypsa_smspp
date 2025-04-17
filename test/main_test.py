@@ -141,8 +141,10 @@ for name, unit_block in transformation.unitblocks.items():
 configfile = SMSConfig(
     template="uc_solverconfig"
 )  # path to the template solver config file "uc_solverconfig"
-temporary_smspp_file = f"./output_files/{network_name}.nc"  # path to temporary SMS++ file
-output_file = f"./output_files/{network_name}.txt"  # path to the output file (optional)
+temporary_smspp_file = os.path.join(DIR, "output", f"{network_name}.nc")  # path to temporary SMS++ file
+output_file = os.path.join(DIR, "output", f"{network_name}.txt")  # path to the output file (optional)
+
+os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
 result = sn.optimize(
     configfile,
