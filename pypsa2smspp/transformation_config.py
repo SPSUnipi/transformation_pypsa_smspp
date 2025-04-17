@@ -161,9 +161,3 @@ class TransformationConfig:
         }
 
         self.max_hours_stores = 10
-
-    def init(self):
-        """
-        Initialize the configuration by reading the parameters from the config file.
-        """
-        self.set_attributes()
