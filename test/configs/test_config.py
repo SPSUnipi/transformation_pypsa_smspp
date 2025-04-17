@@ -13,6 +13,8 @@ FP_DEFAULT = os.path.join(DIR, "application.ini")
 
 # Class for the initial configuration of the project
 class TestConfig():
+    __test__ = False  # disable test
+
     def __init__(self, fp=FP_DEFAULT):
         self.parser = ConfigParser()
         self.parser.read(fp)
@@ -21,10 +23,6 @@ class TestConfig():
             os.path.join(DIR, self.parser["INPUT"]["input_data_path"])
         )
         
-        self.init()
-        
-#%% Section for the workflow of the system
-    def init(self):
         self.set_attributes()
 
 #%% Method to dinamically read the parameters in the config file
