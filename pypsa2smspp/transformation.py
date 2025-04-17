@@ -737,3 +737,106 @@ class Transformation:
             The normalized key.
         '''
         return key.lower().replace(" ", "_")
+
+    ## Create SMSNetwork
+    def convert_to_ucblock(self):
+        """
+        Converts the unit blocks into a UCBlock format.
+        
+        Returns:
+        ----------
+        ucblock : SMSNetwork
+            SMSNetwork object containing the network in SMS++ UCBlock format.
+        """
+        # pySMSpp
+        sn = SMSNetwork(file_type=SMSFileType.eBlockFile) # Empty Block
+
+        # Dimensions of the problem
+        kwargs = self.dimensions
+
+        # Load
+        demand_name = self.demand['name']
+        demand_type = self.demand['type']
+        demand_size = self.demand['size']
+        demand_value = self.demand['value']
+
+        demand = {demand_name: Variable(  # active power demand
+                demand_name,
+                demand_type,
+                demand_size,
+                demand_value )}
+
+        kwargs = {**kwargs, **demand}
+
+        # Generator node
+        generator_node = {self.generator_node['name']: Variable(
+            self.generator_node['name'],
+            self.generator_node['type'],
+            self.generator_node['size'],
+            self.generator_node['value'])}
+
+        kwargs = {**kwargs, **generator_node}
+
+        # Lines
+        line_variables = {}
+        for name, variable in self.networkblock['Lines']['variables'].items():
+            line_variables[name] = Variable(
+                name,
+                variable['type'],
+                variable['size'],
+                variable['value'])
+
+        kwargs = {**kwargs, **line_variables}
+
+        # Add UC block
+        sn.add(
+            "UCBlock",  # block type
+            "Block_0",  # block name
+            id="0",  # block id
+            **kwargs
+        )
+
+        # Add unit blocks
+
+        for name, unit_block in self.unitblocks.items():
+            kwargs = {}
+            for variable_name, variable in unit_block['variables'].items():
+                kwargs[variable_name] = Variable(
+                    variable_name,
+                    variable['type'],
+                    variable['size'],
+                    variable['value'])
+
+            unit_block_toadd = Block().from_kwargs(
+                block_type=unit_block['block'],
+                **kwargs
+            )
+
+            # Why should I have name UnitBlock_0?
+            sn.blocks["Block_0"].add_block(unit_block['enumerate'], block=unit_block_toadd)
+        
+        self.sms_network = sn
+
+        return sn
+    
+    def optimize(self, configfile, *args, **kwargs):
+        """
+        Optimizes the UCBlock using the SMS++ solver.
+
+        Parameters
+        ----------
+        configfile : str
+            Path to the configuration file for the SMS++ solver.
+        *args, **kwargs : additional arguments
+        
+        Returns
+        --------
+        result : dict
+            The optimization result, including status and objective value.
+        """
+        if self.sms_network is None:
+            raise ValueError("SMSNetwork not initialized.")
+    
+        self.result = self.sms_network.optimize(configfile, *args, **kwargs)
+        
+        return self.result
